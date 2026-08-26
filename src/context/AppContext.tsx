@@ -55,7 +55,7 @@ interface AppContextType {
   settings: PlatformSettings;
   
   // Auth & Permissions
-  loginWithCode: (code: string, nameOrPass?: string) => { success: boolean; message?: string };
+  loginWithCode: (code: string, nameOrPass?: string, requiredRole?: 'STUDENT' | 'TEACHER' | 'ADMIN') => { success: boolean; message?: string };
   switchDemoUser: (userIdOrCode: string) => void;
   logout: () => void;
   hasTeacherPermission: (permissionKey: keyof TeacherPermissions) => boolean;
@@ -188,78 +188,171 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Combined users list
   const users: User[] = [adminProfile, ...teachers, ...students];
 
-  // Auth implementation
-  const loginWithCode = (code: string, nameOrPass?: string) => {
+  // Auth implementation with strict portal/role separation
+  const loginWithCode = (
+    code: string,
+    nameOrPass?: string,
+    requiredRole?: 'STUDENT' | 'TEACHER' | 'ADMIN'
+  ): { success: boolean; message?: string } => {
     const cleanCode = code.trim().toUpperCase();
     const cleanName = (nameOrPass || '').trim();
     const cleanNameLower = cleanName.toLowerCase();
     const currentAdminPasscode = (settings.adminPasscode || 'admin123').trim();
 
-    // Check Master Passcode (unlocks Super Admin from any field)
-    const isMasterPasscode = 
-      (cleanName && cleanName === currentAdminPasscode) ||
-      (code.trim() === currentAdminPasscode) ||
-      cleanNameLower === 'admin123' ||
-      cleanCode === 'ADMIN123' ||
-      cleanCode === 'AITEC2026';
+    // 1. Check account classifications
+    const isAdminAccount =
+      cleanCode === 'ADM-0001' ||
+      cleanCode === 'ADMIN' ||
+      cleanCode === (adminProfile.code || '').toUpperCase() ||
+      (adminProfile.email && cleanCode === adminProfile.email.toUpperCase()) ||
+      (settings.contactEmail && cleanCode === settings.contactEmail.toUpperCase());
 
-    // Check Super Admin code or Master Passcode
-    if (cleanCode === 'ADM-0001' || cleanCode === 'ADMIN' || isMasterPasscode) {
+    const matchedTeacher = teachers.find(
+      t => t.code.toUpperCase() === cleanCode || (t.email && t.email.toUpperCase() === cleanCode)
+    );
+
+    const matchedStudent = students.find(
+      s => s.code.toUpperCase() === cleanCode || (s.email && s.email.toUpperCase() === cleanCode)
+    );
+
+    // 2. Strict Role/Portal Verification Guard
+    if (requiredRole === 'STUDENT') {
+      if (isAdminAccount || cleanCode.startsWith('ADM') || cleanCode === currentAdminPasscode.toUpperCase()) {
+        return {
+          success: false,
+          message: 'هذا الكود مخصص لحساب المدير العام (الإدارة) ولا يمكن الدخول به من بوابة المتدربين (الطلاب). يرجى التبديل لبوابة المدير العام.',
+        };
+      }
+      if (matchedTeacher || cleanCode.startsWith('TEA')) {
+        return {
+          success: false,
+          message: 'هذا الكود مخصص لحساب المدرب (المعلم) ولا يمكن الدخول به من بوابة المتدربين (الطلاب). يرجى التبديل لبوابة المدربين.',
+        };
+      }
+      if (!matchedStudent) {
+        return {
+          success: false,
+          message: 'كود المتدرب غير مسجل أو غير صحيح. يرجى إدخال كود المتدرب الخاص بك (مثال: STD-1001).',
+        };
+      }
+    }
+
+    if (requiredRole === 'TEACHER') {
+      if (isAdminAccount || cleanCode.startsWith('ADM') || cleanCode === currentAdminPasscode.toUpperCase()) {
+        return {
+          success: false,
+          message: 'هذا الكود مخصص لحساب المدير العام (الإدارة) ولا يمكن الدخول به من بوابة المدربين. يرجى التبديل لبوابة المدير العام.',
+        };
+      }
+      if (matchedStudent || cleanCode.startsWith('STD')) {
+        return {
+          success: false,
+          message: 'هذا الكود مخصص لحساب المتدرب (الطالب) ولا يمكن الدخول به من بوابة المدربين. يرجى التبديل لبوابة المتدربين.',
+        };
+      }
+      if (!matchedTeacher) {
+        return {
+          success: false,
+          message: 'كود المدرب غير مسجل أو غير صحيح. يرجى إدخال كود المدرب الخاص بك (مثال: TEA-8821).',
+        };
+      }
+    }
+
+    if (requiredRole === 'ADMIN') {
+      if (matchedTeacher || cleanCode.startsWith('TEA')) {
+        return {
+          success: false,
+          message: 'هذا الكود مخصص لحساب المدرب ولا يمكن الدخول به في بوابة المدير العام. يرجى الدخول من بوابة المدربين.',
+        };
+      }
+      if (matchedStudent || cleanCode.startsWith('STD')) {
+        return {
+          success: false,
+          message: 'هذا الكود مخصص لحساب المتدرب ولا يمكن الدخول به في بوابة المدير العام. يرجى الدخول من بوابة المتدربين.',
+        };
+      }
+      if (!isAdminAccount && cleanCode !== currentAdminPasscode.toUpperCase()) {
+        return {
+          success: false,
+          message: 'كود المدير العام غير صحيح. يرجى إدخال كود المشرف العام (ADM-0001).',
+        };
+      }
+    }
+
+    // 3. Authenticate within matching role
+    // Admin Authentication
+    if (isAdminAccount || cleanCode === currentAdminPasscode.toUpperCase()) {
+      if (requiredRole && requiredRole !== 'ADMIN') {
+        return {
+          success: false,
+          message: 'غير مصرح بالدخول لحساب الإدارة من هذه البوابة.',
+        };
+      }
       const adminPassword = adminProfile.password || currentAdminPasscode;
-      if (
-        isMasterPasscode ||
+      const isPassCorrect =
         cleanName === currentAdminPasscode ||
         cleanName === adminPassword ||
         cleanNameLower === 'admin123' ||
-        cleanName === ''
-      ) {
+        (cleanName === '' && cleanCode === currentAdminPasscode.toUpperCase());
+
+      if (isPassCorrect) {
         setCurrentUser(adminProfile);
         return { success: true };
       }
-      return { success: false, message: 'Invalid Admin passcode. Please enter the master password.' };
+      return { success: false, message: 'كلمة مرور المشرف العام غير صحيحة.' };
     }
 
-    // Check Teacher
-    const teacher = teachers.find(t => t.code.toUpperCase() === cleanCode || (t.email && t.email.toUpperCase() === cleanCode));
-    if (teacher) {
-      if (teacher.status === 'BLOCKED' || teacher.status === 'SUSPENDED') {
-        return { success: false, message: `Access denied. Teacher account status is ${teacher.status}.` };
+    // Teacher Authentication
+    if (matchedTeacher) {
+      if (requiredRole && requiredRole !== 'TEACHER') {
+        return {
+          success: false,
+          message: 'هذا الحساب مخصص للمدربين والمعلمين، يرجى التبديل لبوابة المدربين.',
+        };
       }
-      const teacherPass = teacher.password || 'teacher123';
-      const isPassCorrect = !cleanName || 
-        cleanName === teacherPass || 
-        cleanName === currentAdminPasscode || 
-        teacher.name.toLowerCase().includes(cleanNameLower) || 
-        (teacher.nameArabic && teacher.nameArabic.includes(nameOrPass || ''));
+      if (matchedTeacher.status === 'BLOCKED' || matchedTeacher.status === 'SUSPENDED') {
+        return { success: false, message: `حساب المدرب موقوف حالياً (${matchedTeacher.status}).` };
+      }
+      const teacherPass = matchedTeacher.password || 'teacher123';
+      const isPassCorrect =
+        !cleanName ||
+        cleanName === teacherPass ||
+        matchedTeacher.name.toLowerCase().includes(cleanNameLower) ||
+        (matchedTeacher.nameArabic && matchedTeacher.nameArabic.includes(nameOrPass || ''));
 
       if (!isPassCorrect) {
-        return { success: false, message: 'Incorrect teacher password or credentials.' };
+        return { success: false, message: 'كلمة مرور المدرب غير صحيحة.' };
       }
-      setCurrentUser(teacher);
+      setCurrentUser(matchedTeacher);
       return { success: true };
     }
 
-    // Check Student
-    const student = students.find(s => s.code.toUpperCase() === cleanCode || (s.email && s.email.toUpperCase() === cleanCode));
-    if (student) {
-      if (student.status === 'BLOCKED' || student.status === 'SUSPENDED') {
-        return { success: false, message: `Access denied. Student account status is ${student.status}.` };
+    // Student Authentication
+    if (matchedStudent) {
+      if (requiredRole && requiredRole !== 'STUDENT') {
+        return {
+          success: false,
+          message: 'هذا الحساب مخصص للمتدربين والطلاب، يرجى التبديل لبوابة المتدربين.',
+        };
       }
-      const studentPass = student.password || 'student123';
-      const isPassCorrect = !cleanName || 
-        cleanName === studentPass || 
-        cleanName === currentAdminPasscode || 
-        student.name.toLowerCase().includes(cleanNameLower) || 
-        (student.nameArabic && student.nameArabic.includes(nameOrPass || ''));
+      if (matchedStudent.status === 'BLOCKED' || matchedStudent.status === 'SUSPENDED') {
+        return { success: false, message: `حساب المتدرب موقوف حالياً (${matchedStudent.status}).` };
+      }
+      const studentPass = matchedStudent.password || 'student123';
+      const isPassCorrect =
+        !cleanName ||
+        cleanName === studentPass ||
+        matchedStudent.name.toLowerCase().includes(cleanNameLower) ||
+        (matchedStudent.nameArabic && matchedStudent.nameArabic.includes(nameOrPass || ''));
 
       if (!isPassCorrect) {
-        return { success: false, message: 'Incorrect student password or credentials.' };
+        return { success: false, message: 'كلمة مرور المتدرب غير صحيحة.' };
       }
-      setCurrentUser(student);
+      setCurrentUser(matchedStudent);
       return { success: true };
     }
 
-    return { success: false, message: 'Invalid access code or password. Please check your credentials.' };
+    return { success: false, message: 'بيانات الدخول غير صحيحة. يرجى التأكد من الكود وكلمة المرور.' };
   };
 
   const switchDemoUser = (userIdOrCode: string) => {

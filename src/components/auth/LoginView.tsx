@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useI18n } from '../../lib/i18n';
 import { Logo } from '../common/Logo';
+import { ForgotPasswordModal } from './ForgotPasswordModal';
 import {
   GraduationCap,
   BookOpen,
@@ -15,6 +16,7 @@ import {
   Eye,
   EyeOff,
   ChevronRight,
+  HelpCircle,
 } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
@@ -27,6 +29,8 @@ export const LoginView: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
 
   const handleSelectRole = (role: 'STUDENT' | 'TEACHER' | 'ADMIN') => {
     setSelectedRole(role);
@@ -48,7 +52,8 @@ export const LoginView: React.FC = () => {
       );
       return;
     }
-    const result = loginWithCode(code.trim(), password.trim());
+    const roleArg = selectedRole === 'SELECTION' ? undefined : selectedRole;
+    const result = loginWithCode(code.trim(), password.trim(), roleArg);
     if (!result.success) {
       setError(result.message || (isRTL ? 'فشل تسجيل الدخول. يرجى التأكد من الكود وكلمة المرور.' : 'Authentication failed. Please verify your credentials.'));
     }
@@ -173,6 +178,25 @@ export const LoginView: React.FC = () => {
                     <ChevronRight className="w-5 h-5 text-[#D3B673] rtl:rotate-180 transition-all" />
                   </button>
                 </div>
+
+                {/* Direct recovery link on main screen */}
+                <div className="pt-3 text-center border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      setShowForgotPassword(true);
+                    }}
+                    className="text-xs font-bold text-[#8C6826] hover:text-[#29235D] hover:underline transition-all inline-flex items-center gap-1.5 cursor-pointer py-1"
+                  >
+                    <KeyRound className="w-3.5 h-3.5 text-[#D3B673]" />
+                    <span>
+                      {isRTL
+                        ? 'نسيت كلمة المرور؟ استعادة حساب المدرب أو المشرف العام عبر البريد'
+                        : 'Forgot Password? Recover Trainer or Admin Account via Email'}
+                    </span>
+                  </button>
+                </div>
               </div>
             ) : (
               /* STEP 2: Dedicated Login Form */
@@ -222,6 +246,14 @@ export const LoginView: React.FC = () => {
                   </button>
                 </div>
 
+                {/* Success Toast */}
+                {successToast && (
+                  <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-in fade-in">
+                    <Sparkles className="w-4 h-4 flex-shrink-0 text-emerald-600" />
+                    <span>{successToast}</span>
+                  </div>
+                )}
+
                 {/* Error Banner */}
                 {error && (
                   <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
@@ -264,13 +296,28 @@ export const LoginView: React.FC = () => {
 
                   {/* Password / Passcode */}
                   <div>
-                    <label className="block text-xs font-bold text-[#29235D] mb-1.5 flex items-center justify-between">
-                      <span>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold text-[#29235D]">
                         {selectedRole === 'ADMIN'
                           ? isRTL ? 'كلمة المرور الرئيسية (Master Passcode):' : 'Admin Master Passcode:'
                           : isRTL ? 'كلمة المرور (Password):' : 'Password:'}
-                      </span>
-                    </label>
+                      </label>
+
+                      {(selectedRole === 'TEACHER' || selectedRole === 'ADMIN') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setError(null);
+                            setShowForgotPassword(true);
+                          }}
+                          className="text-xs font-bold text-[#8C6826] hover:text-[#29235D] hover:underline flex items-center gap-1 transition-all cursor-pointer"
+                        >
+                          <KeyRound className="w-3 h-3 text-[#D3B673]" />
+                          <span>{isRTL ? 'نسيت كلمة المرور؟' : 'Forgot Password?'}</span>
+                        </button>
+                      )}
+                    </div>
+
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 rtl:left-auto rtl:right-0 pl-3.5 rtl:pr-3.5 flex items-center pointer-events-none">
                         <Lock className="w-4 h-4 text-[#D3B673]" />
@@ -291,6 +338,14 @@ export const LoginView: React.FC = () => {
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
+
+                    {selectedRole === 'STUDENT' && (
+                      <div className="flex justify-end mt-1">
+                        <span className="text-[11px] text-gray-400">
+                          {isRTL ? 'تواصل مع معلمك أو الإدارة لاستعادة بيانات الدخول' : 'Contact your teacher or admin if you lost access'}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <button
@@ -301,6 +356,24 @@ export const LoginView: React.FC = () => {
                     <ArrowRight className="w-4 h-4 rtl:rotate-180 text-[#D3B673]" />
                   </button>
                 </form>
+
+                {/* Direct link on subform */}
+                {(selectedRole === 'TEACHER' || selectedRole === 'ADMIN') && (
+                  <div className="pt-2 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPassword(true)}
+                      className="text-xs text-[#786F9A] hover:text-[#29235D] hover:underline transition-all inline-flex items-center gap-1.5 cursor-pointer font-medium"
+                    >
+                      <HelpCircle className="w-3.5 h-3.5 text-[#D3B673]" />
+                      <span>
+                        {isRTL
+                          ? 'استعادة كلمة المرور عبر البريد الإلكتروني للمدربين والإدارة'
+                          : 'Email-based Password Reset for Teachers & Admins'}
+                      </span>
+                    </button>
+                  </div>
+                )}
 
               </div>
             )}
@@ -314,6 +387,24 @@ export const LoginView: React.FC = () => {
 
         </div>
       </div>
+
+      {/* Forgot Password Modal for Teachers & Admins */}
+      <ForgotPasswordModal
+        isOpen={showForgotPassword}
+        onClose={() => setShowForgotPassword(false)}
+        initialRole={selectedRole}
+        initialEmailOrCode={code}
+        onPasswordResetSuccess={(accountCode, newPass) => {
+          setCode(accountCode);
+          setPassword(newPass);
+          setSuccessToast(
+            isRTL
+              ? `تم تحديث كلمة المرور للحساب ${accountCode} بنجاح! تم تعبئة البيانات وجاهزة للدخول.`
+              : `Password reset successfully for ${accountCode}! Credentials filled and ready to log in.`
+          );
+          setTimeout(() => setSuccessToast(null), 8000);
+        }}
+      />
 
       <div />
     </div>
