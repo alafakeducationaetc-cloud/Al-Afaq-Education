@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { I18nProvider, useI18n } from './lib/i18n';
 import { LoginView } from './components/auth/LoginView';
+import { PublicHomeView } from './components/home/PublicHomeView';
 import { Navbar } from './components/common/Navbar';
 import { Sidebar } from './components/common/Sidebar';
 import { StudentDashboard } from './components/student/StudentDashboard';
@@ -18,13 +19,21 @@ import { ProfileView } from './components/profile/ProfileView';
 const MainAppLayout: React.FC = () => {
   const { currentUser } = useApp();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [showLoginScreen, setShowLoginScreen] = useState<boolean>(false);
 
+  // If visitor is not authenticated:
   if (!currentUser) {
-    return <LoginView />;
+    if (showLoginScreen) {
+      return <LoginView onBackToHome={() => setShowLoginScreen(false)} />;
+    }
+    return <PublicHomeView onOpenLogin={() => setShowLoginScreen(true)} />;
   }
 
   const renderActiveTabContent = () => {
     switch (activeTab) {
+      case 'home':
+        return <PublicHomeView onOpenLogin={() => setActiveTab('dashboard')} />;
+
       case 'dashboard':
         if (currentUser.role === 'STUDENT') {
           return <StudentDashboard onNavigateTab={setActiveTab} />;

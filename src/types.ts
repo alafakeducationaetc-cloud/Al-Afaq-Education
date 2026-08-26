@@ -2,6 +2,23 @@ export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEACHER' | 'STUDENT';
 
 export type UserStatus = 'ACTIVE' | 'SUSPENDED' | 'EXPIRED' | 'BLOCKED' | 'INACTIVE';
 
+export type StudyMode = 'PRIVATE' | 'GROUP';
+
+export type WeekDay = 'SUNDAY' | 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY';
+
+export interface TeacherAvailabilitySlot {
+  id: string;
+  day: WeekDay;
+  dayArabic?: string;
+  startTime: string; // e.g. '17:00'
+  endTime: string;   // e.g. '19:00'
+  timeZoneLabel?: string; // 'توقيت القاهرة (Cairo Time - CLT / GMT+2)'
+  studyType: 'PRIVATE' | 'GROUP' | 'BOTH';
+  maxStudents?: number;
+  isAvailable: boolean;
+  notes?: string;
+}
+
 export type ProgramCategory = 
   | 'ARABIC_LANGUAGE'
   | 'QURAN_RECITATION'
@@ -69,6 +86,8 @@ export interface StudentProfile extends User {
   assignedTeacherIds: string[];
   enrolledProgramIds: string[];
   activeSubscriptionId?: string;
+  preferredStudyMode?: StudyMode;
+  isEmailVerified?: boolean;
   notes?: string;
 }
 
@@ -82,6 +101,9 @@ export interface TeacherProfile extends User {
   teacherPermissions?: TeacherPermissions;
   rating?: number;
   totalClassesTaught?: number;
+  availabilitySlots?: TeacherAvailabilitySlot[];
+  hourlyRatePrivateUSD?: number;
+  monthlyRateGroupUSD?: number;
 }
 
 export interface Program {
@@ -95,7 +117,9 @@ export interface Program {
   level: ProgramLevel;
   language: string;
   durationMonths: number;
-  price: number;
+  price: number; // default base price
+  privatePrice?: number; // Price for 1-on-1 private tutoring
+  groupPrice?: number;   // Price for interactive group class
   currency: string;
   totalSessions: number;
   sessionDurationMinutes: number;
@@ -117,6 +141,7 @@ export interface Subscription {
   totalSessions: number;
   attendedSessions: number;
   remainingSessions: number;
+  studyMode?: StudyMode;
   status: SubscriptionStatus;
   paymentStatus: 'PAID' | 'PENDING' | 'OVERDUE' | 'SCHOLARSHIP';
   amount: number;
@@ -238,6 +263,8 @@ export interface PlatformSettings {
   enableRTL: boolean;
   contactEmail: string;
   contactPhone: string;
+  whatsappNumber?: string;
+  whatsappCustomMessage?: string;
   adminPasscode?: string; // Master security passcode for Super Admin to unlock everything
   logoUrl?: string; // Custom logo image URL (uploaded or web)
   logoDisplayMode?: 'emblem' | 'custom' | 'combined'; // Logo rendering preference

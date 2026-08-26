@@ -123,6 +123,27 @@ interface AppContextType {
     daysRemaining: number;
     sessionsRemaining: number;
   };
+
+  // Public enrollment & Self Registration
+  registerStudentAndEnroll: (data: {
+    name: string;
+    nameArabic?: string;
+    email: string;
+    phone?: string;
+    programId: string;
+    teacherId?: string;
+    studyMode: StudyMode;
+    preferredSlotId?: string;
+    customPassword?: string;
+  }) => {
+    student: StudentProfile;
+    tempPass: string;
+    code: string;
+    program: Program;
+    teacher?: TeacherProfile;
+    subscription: Subscription;
+  };
+  updateTeacherAvailability: (teacherId: string, slots: TeacherAvailabilitySlot[]) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -150,19 +171,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [lessons, setLessons] = useState<Lesson[]>(() => loadStored('lessons', initialLessons));
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => loadStored('notifications', initialNotifications));
   
-  // Current user state (default to Tariq Ibrahim - student for instant rich view)
+  // Current user state (defaults to null so the public Home page is loaded when visiting)
   const [currentUser, setCurrentUser] = useState<User | StudentProfile | TeacherProfile | null>(() => {
     const savedId = localStorage.getItem('alteq_current_user_id');
     const storedAdmin = loadStored('admin_profile', initialAdmin);
+    const storedStudents = loadStored('students', initialStudents);
+    const storedTeachers = loadStored('teachers', initialTeachers);
     if (savedId) {
       if (savedId === storedAdmin.id || savedId === initialAdmin.id) return storedAdmin;
-      const foundStd = initialStudents.find(s => s.id === savedId);
+      const foundStd = storedStudents.find(s => s.id === savedId);
       if (foundStd) return foundStd;
-      const foundTea = initialTeachers.find(t => t.id === savedId);
+      const foundTea = storedTeachers.find(t => t.id === savedId);
       if (foundTea) return foundTea;
     }
-    // Default to student Tariq Ibrahim
-    return initialStudents[0];
+    // If not found or deleted, clear storage and default to null (Public Home)
+    localStorage.removeItem('alteq_current_user_id');
+    return null;
   });
 
   // Persist to local storage
@@ -543,7 +567,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteTeacher = (id: string) => {
     setTeachers(prev => prev.filter(t => t.id !== id));
     if (currentUser && currentUser.id === id) {
-      setCurrentUser(initialAdmin);
+      setCurrentUser(null);
+      localStorage.removeItem('alteq_current_user_id');
+    }
+  };
+
+  const updateTeacherAvailability = (teacherId: string, slots: TeacherAvailabilitySlot[]) => {
+    setTeachers(prev => prev.map(t => t.id === teacherId ? { ...t, availabilitySlots: slots } : t));
+    if (currentUser && currentUser.id === teacherId) {
+      setCurrentUser(prev => prev ? { ...(prev as TeacherProfile), availabilitySlots: slots } : null);
     }
   };
 
@@ -769,6 +801,105 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
+  // Public enrollment & Self Registration
+  const registerStudentAndEnroll = (data: {
+    name: string;
+    nameArabic?: string;
+    email: string;
+    phone?: string;
+    programId: string;
+    teacherId?: string;
+    studyMode: StudyMode;
+    preferredSlotId?: string;
+    customPassword?: string;
+  }) => {
+    const targetProgram = programs.find(p => p.id === data.programId) || programs[0];
+    const chosenTeacherId = data.teacherId || (targetProgram.assignedTeacherIds.length > 0 ? targetProgram.assignedTeacherIds[0] : (teachers[0]?.id || 'usr-tea-1'));
+    const targetTeacher = teachers.find(t => t.id === chosenTeacherId);
+
+    const newStudentId = `usr-std-${Date.now()}`;
+    const newStudentCode = `STD-${Math.floor(1000 + Math.random() * 9000)}`;
+    const tempPassword = data.customPassword || `alafak${Math.floor(100 + Math.random() * 900)}`;
+
+    const newSubId = `sub-${Date.now()}`;
+    const startDate = new Date().toISOString().split('T')[0];
+    const end = new Date();
+    end.setMonth(end.getMonth() + (targetProgram.durationMonths || 3));
+    const endDate = end.toISOString().split('T')[0];
+
+    const amount = data.studyMode === 'PRIVATE' 
+      ? (targetProgram.privatePrice || targetProgram.price)
+      : (targetProgram.groupPrice || Math.round(targetProgram.price * 0.6));
+
+    const newSubscription: Subscription = {
+      id: newSubId,
+      studentId: newStudentId,
+      programId: targetProgram.id,
+      teacherId: chosenTeacherId,
+      startDate,
+      endDate,
+      totalSessions: targetProgram.totalSessions || 24,
+      attendedSessions: 0,
+      remainingSessions: targetProgram.totalSessions || 24,
+      studyMode: data.studyMode,
+      status: 'ACTIVE',
+      paymentStatus: 'PAID',
+      amount,
+      notes: `تسجيل ذاتي عبر الموقع - نظام ${data.studyMode === 'PRIVATE' ? 'دراسة خاصة فردية' : 'مجموعة تفاعلية'}`,
+    };
+
+    const newStudent: StudentProfile = {
+      id: newStudentId,
+      code: newStudentCode,
+      name: data.name,
+      nameArabic: data.nameArabic || data.name,
+      email: data.email,
+      phone: data.phone || '',
+      password: tempPassword,
+      role: 'STUDENT',
+      status: 'ACTIVE',
+      nativeLanguage: 'العربية / English',
+      assignedTeacherIds: [chosenTeacherId],
+      enrolledProgramIds: [targetProgram.id],
+      activeSubscriptionId: newSubId,
+      preferredStudyMode: data.studyMode,
+      isEmailVerified: true,
+      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+      joinedDate: startDate,
+      notes: `مسجل في ${targetProgram.nameArabic} - ${data.studyMode === 'PRIVATE' ? 'خاص (1-on-1)' : 'مجموعة'}`,
+    };
+
+    // Update state
+    setStudents(prev => [newStudent, ...prev]);
+    setSubscriptions(prev => [newSubscription, ...prev]);
+    setPrograms(prev => prev.map(p => p.id === targetProgram.id ? { ...p, enrolledStudentIds: [...p.enrolledStudentIds, newStudentId] } : p));
+    if (targetTeacher) {
+      setTeachers(prev => prev.map(t => t.id === targetTeacher.id ? { ...t, assignedStudentIds: [...t.assignedStudentIds, newStudentId] } : t));
+    }
+
+    const welcomeNotif: NotificationItem = {
+      id: `notif-${Date.now()}`,
+      userId: newStudentId,
+      title: 'Welcome to AITEC Platform! 🎉',
+      titleArabic: 'مرحباً بك في منصة الآفاق الدولية! 🎉',
+      message: `You are now enrolled in ${targetProgram.name} with ${targetTeacher?.name || 'your instructor'}.`,
+      messageArabic: `تم تسجيلك بنجاح في برنامج "${targetProgram.nameArabic}" مع ${targetTeacher?.nameArabic || 'المدرب المعتمد'}. كودك: ${newStudentCode}`,
+      type: 'SUBSCRIPTION',
+      read: false,
+      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
+    };
+    setNotifications(prev => [welcomeNotif, ...prev]);
+
+    return {
+      student: newStudent,
+      tempPass: tempPassword,
+      code: newStudentCode,
+      program: targetProgram,
+      teacher: targetTeacher,
+      subscription: newSubscription,
+    };
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -821,6 +952,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateSettings,
         markNotificationAsRead,
         getStudentStats,
+        registerStudentAndEnroll,
+        updateTeacherAvailability,
       }}
     >
       {children}

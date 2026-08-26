@@ -19,7 +19,11 @@ import {
   HelpCircle,
 } from 'lucide-react';
 
-export const LoginView: React.FC = () => {
+interface LoginViewProps {
+  onBackToHome?: () => void;
+}
+
+export const LoginView: React.FC<LoginViewProps> = ({ onBackToHome }) => {
   const { loginWithCode } = useApp();
   const { language, setLanguage, t, isRTL } = useI18n();
 
@@ -63,15 +67,28 @@ export const LoginView: React.FC = () => {
     <div className="min-h-screen bg-[#F8F6F0] flex flex-col justify-between">
       {/* Top Header */}
       <header className="p-4 sm:p-6 flex justify-between items-center max-w-7xl mx-auto w-full">
-        <Logo size="md" />
-        <button
-          type="button"
-          onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-[#29235D]/15 bg-white hover:bg-[#F1ECE1] text-[#29235D] text-xs font-bold transition-all shadow-xs cursor-pointer"
-        >
-          <Globe className="w-3.5 h-3.5 text-[#D3B673]" />
-          <span>{language === 'en' ? 'العربية (RTL)' : 'English'}</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <Logo size="md" />
+        </div>
+        <div className="flex items-center gap-2.5">
+          {onBackToHome && (
+            <button
+              type="button"
+              onClick={onBackToHome}
+              className="px-3.5 py-1.5 rounded-xl border border-[#29235D]/20 bg-white hover:bg-[#F1ECE1] text-[#29235D] text-xs font-bold transition-all shadow-xs cursor-pointer"
+            >
+              {isRTL ? '← الرجوع للصفحة الرئيسية' : '← Back to Home'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-[#29235D]/15 bg-white hover:bg-[#F1ECE1] text-[#29235D] text-xs font-bold transition-all shadow-xs cursor-pointer"
+          >
+            <Globe className="w-3.5 h-3.5 text-[#D3B673]" />
+            <span>{language === 'en' ? 'العربية (RTL)' : 'English'}</span>
+          </button>
+        </div>
       </header>
 
       {/* Main Login Content */}
