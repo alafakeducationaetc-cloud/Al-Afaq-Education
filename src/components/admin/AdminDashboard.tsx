@@ -1,0 +1,1113 @@
+import React, { useState } from 'react';
+import { useApp } from '../../context/AppContext';
+import { useI18n } from '../../lib/i18n';
+import { TeacherPermissionManager } from './TeacherPermissionManager';
+import { ProgramEditModal } from '../programs/ProgramEditModal';
+import { PasswordManagerModal } from './PasswordManagerModal';
+import { BrandingManager } from './BrandingManager';
+import { UserAvatarEditModal } from './UserAvatarEditModal';
+import {
+  Program,
+  User,
+  UserRole,
+  UserStatus,
+  ProgramCategory,
+  ProgramLevel,
+  SubscriptionStatus,
+  AttendanceStatus,
+  StudentProfile,
+  TeacherProfile,
+} from '../../types';
+import {
+  Users,
+  GraduationCap,
+  BookOpen,
+  CreditCard,
+  Calendar,
+  ClipboardCheck,
+  ShieldCheck,
+  BarChart3,
+  Settings,
+  Plus,
+  Search,
+  Filter,
+  Edit,
+  Trash2,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  ExternalLink,
+  Lock,
+  Save,
+  Download,
+  Sparkles,
+  ArrowRight,
+  TrendingUp,
+  KeyRound,
+  Palette,
+  Camera,
+} from 'lucide-react';
+
+interface AdminDashboardProps {
+  onNavigateTab: (tab: string) => void;
+}
+
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab }) => {
+  const {
+    currentUser,
+    students,
+    teachers,
+    programs,
+    subscriptions,
+    classes,
+    attendance,
+    activities,
+    settings,
+    addStudent,
+    updateStudent,
+    deleteStudent,
+    addTeacher,
+    updateTeacher,
+    deleteTeacher,
+    addProgram,
+    updateProgram,
+    deleteProgram,
+    addSubscription,
+    updateSubscription,
+    extendSubscription,
+    addClassSession,
+    updateSettings,
+  } = useApp();
+
+  const { t, isRTL } = useI18n();
+
+  const [activeAdminSubTab, setActiveAdminSubTab] = useState<
+    'OVERVIEW' | 'STUDENTS' | 'TEACHERS' | 'PROGRAMS' | 'SUBSCRIPTIONS' | 'ATTENDANCE' | 'PERMISSIONS' | 'PASSWORDS' | 'BRANDING' | 'SETTINGS'
+  >('OVERVIEW');
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [editingProgram, setEditingProgram] = useState<Program | null>(null);
+  const [avatarModalUser, setAvatarModalUser] = useState<User | StudentProfile | TeacherProfile | null>(null);
+  const [passwordTargetUser, setPasswordTargetUser] = useState<User | StudentProfile | TeacherProfile | null>(null);
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [showAddTeacherModal, setShowAddTeacherModal] = useState(false);
+  const [showAddProgramModal, setShowAddProgramModal] = useState(false);
+  const [showAddSubModal, setShowAddSubModal] = useState(false);
+  const [showExtendSubId, setShowExtendSubId] = useState<string | null>(null);
+  const [extendDays, setExtendDays] = useState(30);
+  const [extendSessions, setExtendSessions] = useState(8);
+
+  // New Student State
+  const [newStdName, setNewStdName] = useState('');
+  const [newStdNameAr, setNewStdNameAr] = useState('');
+  const [newStdEmail, setNewStdEmail] = useState('');
+  const [newStdTeacherId, setNewStdTeacherId] = useState(teachers[0]?.id || '');
+  const [newStdProgramId, setNewStdProgramId] = useState(programs[0]?.id || '');
+
+  // New Teacher State
+  const [newTeaName, setNewTeaName] = useState('');
+  const [newTeaNameAr, setNewTeaNameAr] = useState('');
+  const [newTeaSpec, setNewTeaSpec] = useState('');
+  const [newTeaEmail, setNewTeaEmail] = useState('');
+
+  // New Program State
+  const [newPrgName, setNewPrgName] = useState('');
+  const [newPrgNameAr, setNewPrgNameAr] = useState('');
+  const [newPrgDesc, setNewPrgDesc] = useState('');
+  const [newPrgCategory, setNewPrgCategory] = useState<ProgramCategory>('ARABIC_LANGUAGE');
+  const [newPrgLevel, setNewPrgLevel] = useState<ProgramLevel>('BEGINNER');
+  const [newPrgPrice, setNewPrgPrice] = useState(350);
+  const [newPrgSessions, setNewPrgSessions] = useState(24);
+
+  // Settings form state
+  const [platformName, setPlatformName] = useState(settings.platformName);
+  const [studentPrefix, setStudentPrefix] = useState(settings.studentCodePrefix);
+  const [teacherPrefix, setTeacherPrefix] = useState(settings.teacherCodePrefix);
+  const [programPrefix, setProgramPrefix] = useState(settings.programCodePrefix);
+  const [defaultZoom, setDefaultZoom] = useState(settings.defaultZoomLink);
+  const [settingsSaved, setSettingsSaved] = useState(false);
+
+  // Stats calculation
+  const totalStudents = students.length;
+  const activeStudents = students.filter(s => s.status === 'ACTIVE').length;
+  const totalTeachers = teachers.length;
+  const activePrograms = programs.filter(p => p.status === 'ACTIVE').length;
+  const activeSubscriptions = subscriptions.filter(s => s.status === 'ACTIVE').length;
+  const totalAttendanceRecords = attendance.length;
+  const presentRecords = attendance.filter(a => a.status === 'PRESENT' || a.status === 'LATE').length;
+  const globalAttendanceRate = totalAttendanceRecords > 0 ? Math.round((presentRecords / totalAttendanceRecords) * 100) : 94;
+
+  const handleCreateStudent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStdName) return;
+    addStudent({
+      role: 'STUDENT',
+      name: newStdName,
+      nameArabic: newStdNameAr,
+      email: newStdEmail,
+      status: 'ACTIVE',
+      assignedTeacherIds: newStdTeacherId ? [newStdTeacherId] : [],
+      enrolledProgramIds: newStdProgramId ? [newStdProgramId] : [],
+      nativeLanguage: 'English',
+    });
+    setShowAddStudentModal(false);
+    setNewStdName('');
+    setNewStdNameAr('');
+    setNewStdEmail('');
+  };
+
+  const handleCreateTeacher = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTeaName) return;
+    addTeacher({
+      role: 'TEACHER',
+      name: newTeaName,
+      nameArabic: newTeaNameAr,
+      specialization: newTeaSpec || 'Arabic & Quran Specialist',
+      email: newTeaEmail,
+      status: 'ACTIVE',
+      assignedProgramIds: [],
+      assignedStudentIds: [],
+      rating: 5.0,
+      totalClassesTaught: 0,
+    });
+    setShowAddTeacherModal(false);
+    setNewTeaName('');
+    setNewTeaNameAr('');
+    setNewTeaSpec('');
+  };
+
+  const handleCreateProgram = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPrgName) return;
+    addProgram({
+      name: newPrgName,
+      nameArabic: newPrgNameAr,
+      description: newPrgDesc,
+      category: newPrgCategory,
+      level: newPrgLevel,
+      language: 'Arabic & English',
+      durationMonths: 3,
+      price: Number(newPrgPrice),
+      currency: 'USD',
+      totalSessions: Number(newPrgSessions),
+      sessionDurationMinutes: 60,
+      assignedTeacherIds: [],
+      enrolledStudentIds: [],
+      startDate: '2026-09-01',
+      endDate: '2026-12-01',
+      status: 'ACTIVE',
+    });
+    setShowAddProgramModal(false);
+    setNewPrgName('');
+    setNewPrgNameAr('');
+    setNewPrgDesc('');
+  };
+
+  const handleSaveSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateSettings({
+      platformName,
+      studentCodePrefix: studentPrefix,
+      teacherCodePrefix: teacherPrefix,
+      programCodePrefix: programPrefix,
+      defaultZoomLink: defaultZoom,
+    });
+    setSettingsSaved(true);
+    setTimeout(() => setSettingsSaved(false), 2500);
+  };
+
+  return (
+    <div className="space-y-6">
+      
+      {/* 1. Admin Control Header Banner */}
+      <div className="bg-gradient-to-r from-[#29235D] via-[#1D1845] to-[#29235D] rounded-3xl p-6 sm:p-8 text-white border border-[#D3B673]/30 shadow-xl relative overflow-hidden">
+        <div className="absolute -right-10 -bottom-10 w-60 h-60 bg-[#D3B673]/15 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#D3B673]/20 text-[#E8D5A3] border border-[#D3B673]/40 inline-flex items-center gap-1.5 mb-3">
+              <ShieldCheck className="w-4 h-4 text-[#D3B673]" />
+              Central Administration Control Center
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-black text-white font-serif tracking-wide">
+              {t('platformName')} Administration
+            </h1>
+            <p className="text-xs sm:text-sm text-white/80 mt-1 max-w-xl">
+              Manage students, teachers, educational programs, subscriptions, attendance records, and platform settings from one central system.
+            </p>
+          </div>
+
+          {/* Quick Action Badges */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => {
+                setAvatarModalUser(currentUser || ({
+                  id: 'usr-adm-1',
+                  code: 'ADM-0001',
+                  name: 'Dr. Alafak Director (المشرف العام)',
+                  nameArabic: 'د. المشرف العام للآفاق الدولية',
+                  role: 'SUPER_ADMIN',
+                  status: 'ACTIVE',
+                  avatarUrl: currentUser?.avatarUrl,
+                } as any));
+              }}
+              className="px-4 py-2.5 rounded-2xl bg-[#D3B673] hover:bg-[#E8D5A3] text-[#29235D] font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
+            >
+              <Camera className="w-4 h-4" />
+              <span>{isRTL ? 'تعديل صورتي الشخصية' : 'Edit My Photo'}</span>
+            </button>
+            <button
+              onClick={() => setActiveAdminSubTab('BRANDING')}
+              className="px-4 py-2.5 rounded-2xl bg-white/15 hover:bg-white/25 text-[#E8D5A3] font-bold text-xs flex items-center gap-2 border border-[#D3B673]/40 transition-all cursor-pointer"
+            >
+              <Palette className="w-4 h-4 text-[#D3B673]" />
+              <span>{isRTL ? 'تعديل الشعار والهوية' : 'Edit Logo & Brand'}</span>
+            </button>
+            <button
+              onClick={() => setActiveAdminSubTab('PASSWORDS')}
+              className="px-4 py-2.5 rounded-2xl bg-[#29235D] hover:bg-[#1D1845] text-[#D3B673] font-bold text-xs flex items-center gap-2 border border-[#D3B673]/40 transition-all cursor-pointer"
+            >
+              <KeyRound className="w-4 h-4" />
+              <span>{isRTL ? 'التحكم بالباسوردات' : 'Manage Passwords'}</span>
+            </button>
+            <button
+              onClick={() => setShowAddStudentModal(true)}
+              className="px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-2 border border-white/20 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4 text-[#D3B673]" />
+              <span>Add Student</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Key Metric Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+        
+        <div className="bg-white rounded-2xl p-4 border border-[#29235D]/10 shadow-xs">
+          <p className="text-[11px] font-semibold text-gray-500">Total Students</p>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-2xl font-black text-[#29235D] font-serif">{totalStudents}</span>
+            <span className="text-[10px] font-bold text-emerald-600">({activeStudents} active)</span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-[#29235D]/10 shadow-xs">
+          <p className="text-[11px] font-semibold text-gray-500">Faculty / Teachers</p>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-2xl font-black text-[#29235D] font-serif">{totalTeachers}</span>
+            <span className="text-[10px] font-bold text-emerald-600">Certified</span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-[#29235D]/10 shadow-xs">
+          <p className="text-[11px] font-semibold text-gray-500">Active Programs</p>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-2xl font-black text-[#29235D] font-serif">{activePrograms}</span>
+            <span className="text-[10px] font-bold text-[#B89955]">Catalog</span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-[#29235D]/10 shadow-xs">
+          <p className="text-[11px] font-semibold text-gray-500">Active Subscriptions</p>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-2xl font-black text-[#29235D] font-serif">{activeSubscriptions}</span>
+            <span className="text-[10px] font-bold text-emerald-600">Enrolled</span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-[#29235D]/10 shadow-xs col-span-2 lg:col-span-1">
+          <p className="text-[11px] font-semibold text-gray-500">Global Attendance</p>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-2xl font-black text-[#29235D] font-serif">{globalAttendanceRate}%</span>
+            <span className="text-[10px] font-bold text-emerald-600">High</span>
+          </div>
+        </div>
+
+      </div>
+
+      {/* 3. Sub-Navigation Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 bg-white p-1.5 rounded-2xl border border-[#29235D]/10 text-xs font-bold">
+        {[
+          { id: 'OVERVIEW', label: isRTL ? 'نظرة عامة' : 'Dashboard Overview', icon: <BarChart3 className="w-3.5 h-3.5" /> },
+          { id: 'STUDENTS', label: isRTL ? `الطلاب (${students.length})` : `Students (${students.length})`, icon: <GraduationCap className="w-3.5 h-3.5" /> },
+          { id: 'TEACHERS', label: isRTL ? `المعلمون (${teachers.length})` : `Teachers (${teachers.length})`, icon: <Users className="w-3.5 h-3.5" /> },
+          { id: 'PASSWORDS', label: isRTL ? 'كلمات المرور والأمان' : 'Passwords & Passcodes', icon: <KeyRound className="w-3.5 h-3.5 text-[#B89955]" /> },
+          { id: 'BRANDING', label: isRTL ? 'الهوية والشعار (Logo)' : 'Branding & Logo', icon: <Palette className="w-3.5 h-3.5 text-[#B89955]" /> },
+          { id: 'PROGRAMS', label: isRTL ? `البرامج (${programs.length})` : `Programs (${programs.length})`, icon: <BookOpen className="w-3.5 h-3.5" /> },
+          { id: 'SUBSCRIPTIONS', label: isRTL ? `الاشتراكات (${subscriptions.length})` : `Subscriptions (${subscriptions.length})`, icon: <CreditCard className="w-3.5 h-3.5" /> },
+          { id: 'ATTENDANCE', label: isRTL ? 'سجل الحضور' : 'Attendance Roll', icon: <ClipboardCheck className="w-3.5 h-3.5" /> },
+          { id: 'PERMISSIONS', label: isRTL ? 'صلاحيات المعلمين' : 'Role Permissions', icon: <ShieldCheck className="w-3.5 h-3.5" /> },
+          { id: 'SETTINGS', label: isRTL ? 'إعدادات النظام' : 'Settings', icon: <Settings className="w-3.5 h-3.5" /> },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveAdminSubTab(tab.id as any)}
+            className={`px-3.5 py-2 rounded-xl flex items-center gap-1.5 whitespace-nowrap transition-all ${
+              activeAdminSubTab === tab.id
+                ? 'bg-[#29235D] text-[#D3B673] shadow-xs'
+                : 'text-[#786F9A] hover:bg-[#F8F6F0] hover:text-[#29235D]'
+            }`}
+          >
+            {tab.icon}
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* 4. Tab Contents */}
+
+      {/* OVERVIEW TAB */}
+      {activeAdminSubTab === 'OVERVIEW' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Recent Students Table */}
+          <div className="bg-white rounded-3xl p-6 border border-[#29235D]/10 shadow-xs space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-base font-bold text-[#29235D] font-serif">Recent Student Enrolments</h3>
+              <button
+                onClick={() => setActiveAdminSubTab('STUDENTS')}
+                className="text-xs font-bold text-[#29235D] hover:text-[#B89955]"
+              >
+                View All →
+              </button>
+            </div>
+
+            <div className="space-y-2.5">
+              {students.slice(0, 4).map(std => (
+                <div
+                  key={std.id}
+                  className="p-3 rounded-xl bg-[#FBF9F4] border border-gray-100 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={std.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                      alt={std.name}
+                      className="w-9 h-9 rounded-lg object-cover"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-[#29235D]">{std.name}</span>
+                        <span className="text-[10px] font-mono text-gray-400 font-bold">{std.code}</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500">{std.email || 'student@example.com'}</p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                    {std.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Active Programs Overview */}
+          <div className="bg-white rounded-3xl p-6 border border-[#29235D]/10 shadow-xs space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-base font-bold text-[#29235D] font-serif">Educational Programs Catalog</h3>
+              <button
+                onClick={() => setActiveAdminSubTab('PROGRAMS')}
+                className="text-xs font-bold text-[#29235D] hover:text-[#B89955]"
+              >
+                Manage Programs →
+              </button>
+            </div>
+
+            <div className="space-y-2.5">
+              {programs.slice(0, 4).map(prg => (
+                <div
+                  key={prg.id}
+                  className="p-3 rounded-xl bg-[#FBF9F4] border border-gray-100 flex items-center justify-between"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-[#29235D] font-serif">{prg.name}</span>
+                      <span className="text-[9px] font-mono bg-[#29235D] text-[#D3B673] px-1.5 py-0.2 rounded">
+                        {prg.code}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      Level: {prg.level} • {prg.totalSessions} Sessions • ${prg.price}
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-[#B89955]">${prg.price}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STUDENTS TAB */}
+      {activeAdminSubTab === 'STUDENTS' && (
+        <div className="bg-white rounded-3xl p-6 border border-[#29235D]/10 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <GraduationCap className="w-5 h-5 text-[#D3B673]" />
+              <h3 className="text-base font-bold text-[#29235D] font-serif">
+                Student Management & Status Control
+              </h3>
+            </div>
+            <button
+              onClick={() => setShowAddStudentModal(true)}
+              className="px-4 py-2 bg-[#29235D] text-[#D3B673] text-xs font-bold rounded-xl flex items-center gap-1.5 hover:bg-[#1D1845] transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add New Student</span>
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left rtl:text-right text-xs">
+              <thead className="bg-[#F8F6F0] text-[#786F9A] uppercase tracking-wider font-bold">
+                <tr>
+                  <th className="p-3 rounded-l-xl rtl:rounded-r-xl">Student</th>
+                  <th className="p-3">Code</th>
+                  <th className="p-3">Assigned Teacher</th>
+                  <th className="p-3">Joined Date</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3 rounded-r-xl rtl:rounded-l-xl text-right rtl:text-left">Status Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {students.map(std => {
+                  const teacher = teachers.find(t => std.assignedTeacherIds.includes(t.id));
+                  return (
+                    <tr key={std.id} className="hover:bg-gray-50/60">
+                      <td className="p-3 font-semibold text-[#29235D] flex items-center gap-2">
+                        <div className="relative group">
+                          <img
+                            src={std.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                            alt={std.name}
+                            className="w-8 h-8 rounded-full border border-[#D3B673] object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setAvatarModalUser(std)}
+                            className="absolute -bottom-1 -right-1 p-1 rounded-full bg-[#29235D] text-[#D3B673] shadow-xs hover:scale-110 transition-all cursor-pointer"
+                            title={isRTL ? 'تعديل صورة الطالب' : 'Change Avatar'}
+                          >
+                            <Camera className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                        <div>
+                          <div className="font-bold">{std.nameArabic || std.name}</div>
+                          <div className="text-[10px] text-gray-400 font-normal">{std.email}</div>
+                        </div>
+                      </td>
+                      <td className="p-3 font-mono font-bold text-[#D3B673]">{std.code}</td>
+                      <td className="p-3 text-gray-600">{teacher ? (teacher.nameArabic || teacher.name) : 'Unassigned'}</td>
+                      <td className="p-3 text-gray-500">{std.joinedDate}</td>
+                      <td className="p-3">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            std.status === 'ACTIVE'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : std.status === 'SUSPENDED'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {std.status}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right rtl:text-left">
+                        <div className="flex items-center justify-end rtl:justify-start gap-1">
+                          {/* Change Avatar */}
+                          <button
+                            onClick={() => setAvatarModalUser(std)}
+                            className="p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#29235D] transition-all"
+                            title={isRTL ? 'تعديل الصورة' : 'Change Avatar'}
+                          >
+                            <Camera className="w-3.5 h-3.5 text-[#B89955]" />
+                          </button>
+
+                          {/* Change Password */}
+                          <button
+                            onClick={() => {
+                              setPasswordTargetUser(std);
+                              setActiveAdminSubTab('PASSWORDS');
+                            }}
+                            className="p-1.5 rounded-lg bg-[#29235D]/10 hover:bg-[#29235D]/20 text-[#29235D] transition-all"
+                            title={isRTL ? 'تعديل كلمة المرور' : 'Change Password'}
+                          >
+                            <KeyRound className="w-3.5 h-3.5 text-[#29235D]" />
+                          </button>
+
+                          {/* Toggle Active / Suspended */}
+                          <button
+                            onClick={() =>
+                              updateStudent(std.id, {
+                                status: std.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE',
+                              })
+                            }
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold ${
+                              std.status === 'ACTIVE'
+                                ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                            }`}
+                          >
+                            {std.status === 'ACTIVE' ? 'Suspend' : 'Activate'}
+                          </button>
+                          <button
+                            onClick={() => deleteStudent(std.id)}
+                            className="p-1 text-gray-400 hover:text-red-600"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TEACHERS TAB */}
+      {activeAdminSubTab === 'TEACHERS' && (
+        <TeacherPermissionManager />
+      )}
+
+      {/* PROGRAMS TAB */}
+      {activeAdminSubTab === 'PROGRAMS' && (
+        <div className="bg-white rounded-3xl p-6 border border-[#29235D]/10 shadow-xs space-y-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-[#D3B673]" />
+              <h3 className="text-base font-bold text-[#29235D] font-serif">
+                Programs & Courses Catalog
+              </h3>
+            </div>
+            <button
+              onClick={() => setShowAddProgramModal(true)}
+              className="px-4 py-2 bg-[#29235D] text-[#D3B673] text-xs font-bold rounded-xl flex items-center gap-1.5 hover:bg-[#1D1845]"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create Program</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {programs.map(prg => (
+              <div
+                key={prg.id}
+                className="p-5 rounded-2xl border border-gray-200 bg-[#FBF9F4] space-y-3"
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#29235D] text-[#D3B673]">
+                      {prg.code}
+                    </span>
+                    <h4 className="text-sm font-bold text-[#29235D] font-serif mt-1">{prg.name}</h4>
+                    <p className="text-xs text-gray-500 font-arabic">{prg.nameArabic}</p>
+                  </div>
+                  <span className="text-base font-black text-[#B89955]">${prg.price}</span>
+                </div>
+
+                <p className="text-xs text-gray-600 line-clamp-2">{prg.description}</p>
+
+                <div className="pt-2 border-t border-gray-200 flex justify-between items-center text-[11px] text-gray-500">
+                  <span>Level: {prg.level}</span>
+                  <span>{prg.totalSessions} sessions</span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setEditingProgram(prg)}
+                      className="text-[#29235D] hover:text-[#1D1845] font-bold flex items-center gap-1 cursor-pointer bg-[#D3B673]/20 hover:bg-[#D3B673]/30 px-2.5 py-1 rounded-lg border border-[#D3B673]/40"
+                    >
+                      <Edit className="w-3 h-3 text-[#B89955]" />
+                      <span>{isRTL ? 'تعديل البرنامج' : 'Edit'}</span>
+                    </button>
+                    <button
+                      onClick={() => deleteProgram(prg.id)}
+                      className="text-red-500 hover:text-red-700 font-bold cursor-pointer"
+                    >
+                      {isRTL ? 'حذف' : 'Delete'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* SUBSCRIPTIONS TAB */}
+      {activeAdminSubTab === 'SUBSCRIPTIONS' && (
+        <div className="bg-white rounded-3xl p-6 border border-[#29235D]/10 shadow-xs space-y-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-[#D3B673]" />
+              <h3 className="text-base font-bold text-[#29235D] font-serif">
+                Student Subscriptions & Expirations
+              </h3>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left rtl:text-right text-xs">
+              <thead className="bg-[#F8F6F0] text-[#786F9A] uppercase tracking-wider font-bold">
+                <tr>
+                  <th className="p-3">Student</th>
+                  <th className="p-3">Program</th>
+                  <th className="p-3">Start Date</th>
+                  <th className="p-3">End Date</th>
+                  <th className="p-3">Sessions (Attended/Total)</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3 text-right rtl:text-left">Extend / Manage</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {subscriptions.map(sub => {
+                  const student = students.find(s => s.id === sub.studentId);
+                  const program = programs.find(p => p.id === sub.programId);
+                  return (
+                    <tr key={sub.id} className="hover:bg-gray-50/60">
+                      <td className="p-3 font-bold text-[#29235D]">{student?.name || sub.studentId}</td>
+                      <td className="p-3 text-gray-700">{program?.name || sub.programId}</td>
+                      <td className="p-3 text-gray-500">{sub.startDate}</td>
+                      <td className="p-3 font-semibold text-[#29235D]">{sub.endDate}</td>
+                      <td className="p-3 font-mono font-bold">
+                        {sub.attendedSessions} / {sub.totalSessions} ({sub.remainingSessions} left)
+                      </td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                          {sub.status}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right rtl:text-left">
+                        <button
+                          onClick={() => setShowExtendSubId(sub.id)}
+                          className="px-3 py-1 bg-[#D3B673] hover:bg-[#E8D5A3] text-[#29235D] font-bold rounded-lg text-[10px] shadow-xs"
+                        >
+                          + Extend Validity
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ATTENDANCE TAB */}
+      {activeAdminSubTab === 'ATTENDANCE' && (
+        <div className="bg-white rounded-3xl p-6 border border-[#29235D]/10 shadow-xs space-y-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <ClipboardCheck className="w-5 h-5 text-[#D3B673]" />
+              <h3 className="text-base font-bold text-[#29235D] font-serif">
+                Global Attendance Log & Verification
+              </h3>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left rtl:text-right text-xs">
+              <thead className="bg-[#F8F6F0] text-[#786F9A] uppercase tracking-wider font-bold">
+                <tr>
+                  <th className="p-3">Date</th>
+                  <th className="p-3">Student</th>
+                  <th className="p-3">Teacher</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Marked Timestamp</th>
+                  <th className="p-3">Notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {attendance.map(att => {
+                  const student = students.find(s => s.id === att.studentId);
+                  const teacher = teachers.find(t => t.id === att.teacherId);
+                  return (
+                    <tr key={att.id} className="hover:bg-gray-50/60">
+                      <td className="p-3 font-mono text-gray-500">{att.date}</td>
+                      <td className="p-3 font-bold text-[#29235D]">{student?.name || att.studentId}</td>
+                      <td className="p-3 text-gray-600">{teacher?.name || att.teacherId}</td>
+                      <td className="p-3">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            att.status === 'PRESENT'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : att.status === 'ABSENT'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {att.status}
+                        </span>
+                      </td>
+                      <td className="p-3 text-[11px] text-gray-400">{att.markedAt}</td>
+                      <td className="p-3 text-gray-500">{att.notes || '-'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* PERMISSIONS TAB */}
+      {activeAdminSubTab === 'PERMISSIONS' && (
+        <TeacherPermissionManager />
+      )}
+
+      {/* PASSWORDS & SECURITY TAB */}
+      {activeAdminSubTab === 'PASSWORDS' && (
+        <PasswordManagerModal
+          initialSelectedUserId={passwordTargetUser?.id}
+          onSelectUserForAvatar={u => setAvatarModalUser(u)}
+        />
+      )}
+
+      {/* BRANDING & LOGO TAB */}
+      {activeAdminSubTab === 'BRANDING' && (
+        <BrandingManager />
+      )}
+
+      {/* SETTINGS TAB */}
+      {activeAdminSubTab === 'SETTINGS' && (
+        <div className="bg-white rounded-3xl p-6 border border-[#29235D]/10 shadow-xs space-y-6">
+          <div className="flex items-center gap-2">
+            <Settings className="w-5 h-5 text-[#D3B673]" />
+            <h3 className="text-base font-bold text-[#29235D] font-serif">
+              Platform & Brand Configuration
+            </h3>
+          </div>
+
+          {settingsSaved && (
+            <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs rounded-xl flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-600" />
+              <span>Platform settings updated and persisted successfully.</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSaveSettings} className="space-y-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block font-bold text-[#29235D] mb-1">Platform Name</label>
+                <input
+                  type="text"
+                  value={platformName}
+                  onChange={e => setPlatformName(e.target.value)}
+                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl font-bold text-[#29235D]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#29235D] mb-1">Default Zoom Room URL</label>
+                <input
+                  type="text"
+                  value={defaultZoom}
+                  onChange={e => setDefaultZoom(e.target.value)}
+                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block font-bold text-[#29235D] mb-1">Student Code Prefix</label>
+                <input
+                  type="text"
+                  value={studentPrefix}
+                  onChange={e => setStudentPrefix(e.target.value)}
+                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl font-mono"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-[#29235D] mb-1">Teacher Code Prefix</label>
+                <input
+                  type="text"
+                  value={teacherPrefix}
+                  onChange={e => setTeacherPrefix(e.target.value)}
+                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl font-mono"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-[#29235D] mb-1">Program Code Prefix</label>
+                <input
+                  type="text"
+                  value={programPrefix}
+                  onChange={e => setProgramPrefix(e.target.value)}
+                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-gray-100 flex justify-end">
+              <button
+                type="submit"
+                className="px-6 py-2.5 rounded-xl bg-[#29235D] text-[#D3B673] font-bold hover:bg-[#1D1845] border border-[#D3B673] shadow-md flex items-center gap-2 cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                <span>Save Platform Settings</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal: Add Student */}
+      {showAddStudentModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-[#29235D]/20 shadow-2xl">
+            <h3 className="text-base font-bold text-[#29235D] font-serif">Create New Student Account</h3>
+            <form onSubmit={handleCreateStudent} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-[#29235D] mb-1">Full Name (English)</label>
+                <input
+                  type="text"
+                  required
+                  value={newStdName}
+                  onChange={e => setNewStdName(e.target.value)}
+                  placeholder="e.g. Yasmin Al-Hassan"
+                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-[#29235D] mb-1">Full Name (Arabic)</label>
+                <input
+                  type="text"
+                  value={newStdNameAr}
+                  onChange={e => setNewStdNameAr(e.target.value)}
+                  placeholder="ياسمين الحسن"
+                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl font-arabic"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-[#29235D] mb-1">Email</label>
+                <input
+                  type="email"
+                  value={newStdEmail}
+                  onChange={e => setNewStdEmail(e.target.value)}
+                  placeholder="student@example.com"
+                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-[#29235D] mb-1">Assign Primary Teacher</label>
+                <select
+                  value={newStdTeacherId}
+                  onChange={e => setNewStdTeacherId(e.target.value)}
+                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl"
+                >
+                  {teachers.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddStudentModal(false)}
+                  className="px-4 py-2 text-gray-500 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#29235D] text-[#D3B673] font-bold rounded-xl"
+                >
+                  Create Student
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Add Teacher */}
+      {showAddTeacherModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-[#29235D]/20 shadow-2xl">
+            <h3 className="text-base font-bold text-[#29235D] font-serif">Add Certified Teacher</h3>
+            <form onSubmit={handleCreateTeacher} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-[#29235D] mb-1">Teacher Name</label>
+                <input
+                  type="text"
+                  required
+                  value={newTeaName}
+                  onChange={e => setNewTeaName(e.target.value)}
+                  placeholder="Sheikh Yusuf Al-Ghamdi"
+                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-[#29235D] mb-1">Specialization</label>
+                <input
+                  type="text"
+                  value={newTeaSpec}
+                  onChange={e => setNewTeaSpec(e.target.value)}
+                  placeholder="Classical Arabic & Tajweed Specialist"
+                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddTeacherModal(false)}
+                  className="px-4 py-2 text-gray-500 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#29235D] text-[#D3B673] font-bold rounded-xl"
+                >
+                  Add Teacher
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Add Program */}
+      {showAddProgramModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 border border-[#29235D]/20 shadow-2xl">
+            <h3 className="text-base font-bold text-[#29235D] font-serif">Create Educational Program</h3>
+            <form onSubmit={handleCreateProgram} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-[#29235D] mb-1">Program Name (English)</label>
+                  <input
+                    type="text"
+                    required
+                    value={newPrgName}
+                    onChange={e => setNewPrgName(e.target.value)}
+                    placeholder="Quranic Phonetics & Makharij"
+                    className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-[#29235D] mb-1">Program Name (Arabic)</label>
+                  <input
+                    type="text"
+                    value={newPrgNameAr}
+                    onChange={e => setNewPrgNameAr(e.target.value)}
+                    placeholder="مخارج الحروف وصفاتها"
+                    className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl font-arabic"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-[#29235D] mb-1">Price ($)</label>
+                  <input
+                    type="number"
+                    value={newPrgPrice}
+                    onChange={e => setNewPrgPrice(Number(e.target.value))}
+                    className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-[#29235D] mb-1">Total Sessions</label>
+                  <input
+                    type="number"
+                    value={newPrgSessions}
+                    onChange={e => setNewPrgSessions(Number(e.target.value))}
+                    className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddProgramModal(false)}
+                  className="px-4 py-2 text-gray-500 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#29235D] text-[#D3B673] font-bold rounded-xl"
+                >
+                  Create Program
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Extend Subscription Validity */}
+      {showExtendSubId && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 border border-[#29235D]/20 shadow-2xl">
+            <h3 className="text-base font-bold text-[#29235D] font-serif">Extend Subscription Validity</h3>
+            <p className="text-xs text-gray-500">
+              Add additional calendar days and live session quotas.
+            </p>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-[#29235D] mb-1">Add Days</label>
+                <input
+                  type="number"
+                  value={extendDays}
+                  onChange={e => setExtendDays(Number(e.target.value))}
+                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-[#29235D] mb-1">Add Extra Sessions</label>
+                <input
+                  type="number"
+                  value={extendSessions}
+                  onChange={e => setExtendSessions(Number(e.target.value))}
+                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowExtendSubId(null)}
+                  className="px-4 py-2 text-gray-500 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    extendSubscription(showExtendSubId, extendDays, extendSessions);
+                    setShowExtendSubId(null);
+                  }}
+                  className="px-5 py-2 bg-[#29235D] text-[#D3B673] font-bold rounded-xl"
+                >
+                  Confirm Extension
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT PROGRAM MODAL */}
+      {editingProgram && (
+        <ProgramEditModal
+          program={editingProgram}
+          isOpen={!!editingProgram}
+          onClose={() => setEditingProgram(null)}
+          onSaved={() => setEditingProgram(null)}
+        />
+      )}
+
+      {/* USER AVATAR EDIT MODAL */}
+      <UserAvatarEditModal
+        user={avatarModalUser}
+        isOpen={!!avatarModalUser}
+        onClose={() => setAvatarModalUser(null)}
+      />
+
+    </div>
+  );
+};

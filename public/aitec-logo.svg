@@ -1,0 +1,73 @@
+<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="aitecNavyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#29235D" />
+      <stop offset="50%" stop-color="#1E1A48" />
+      <stop offset="100%" stop-color="#141033" />
+    </linearGradient>
+    <linearGradient id="aitecGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5E6BE" />
+      <stop offset="35%" stop-color="#D3B673" />
+      <stop offset="70%" stop-color="#B38F43" />
+      <stop offset="100%" stop-color="#8C6826" />
+    </linearGradient>
+    <linearGradient id="aitecGoldGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFF2D1" />
+      <stop offset="100%" stop-color="#C8A355" />
+    </linearGradient>
+    <path id="topTextPath" d="M 46,150 A 104,104 0 1,1 254,150" fill="none" />
+    <path id="bottomTextPath" d="M 250,154 A 102,102 0 0,1 50,154" fill="none" />
+    <path id="innerArabicPath" d="M 218,172 A 74,74 0 0,1 82,172" fill="none" />
+  </defs>
+
+  <circle cx="150" cy="150" r="144" fill="url(#aitecNavyGrad)" stroke="url(#aitecGoldGrad)" stroke-width="5" />
+  <circle cx="150" cy="150" r="141" fill="none" stroke="#D3B673" stroke-width="1" stroke-dasharray="3 3" opacity="0.7" />
+
+  <text fill="#FFFFFF" font-size="10.8" font-weight="700" letter-spacing="0.8" font-family="Arial, sans-serif">
+    <textPath href="#topTextPath" startOffset="50%" text-anchor="middle">
+      AL-Afak International For Training And Educational Consultants
+    </textPath>
+  </text>
+
+  <text fill="url(#aitecGoldGrad)" font-size="12.5" font-weight="800" font-family="Cairo, Amiri, sans-serif">
+    <textPath href="#bottomTextPath" startOffset="50%" text-anchor="middle">
+      الآفاق الدولية للتدريب والاستشارات التربوية
+    </textPath>
+  </text>
+
+  <circle cx="150" cy="150" r="96" fill="#FFFFFF" stroke="url(#aitecGoldGrad)" stroke-width="4" />
+  <circle cx="150" cy="150" r="92" fill="none" stroke="#29235D" stroke-width="1" opacity="0.3" />
+
+  <g transform="translate(150, 88)">
+    <path d="M -58,-3 Q -30,-6 -12,-3 Q 0,-1 12,-3 Q 30,-6 58,-3" fill="none" stroke="url(#aitecGoldGrad)" stroke-width="1.5" />
+    <circle cx="-62" cy="-3" r="2" fill="#D3B673" />
+    <circle cx="62" cy="-3" r="2" fill="#D3B673" />
+    <text y="12" text-anchor="middle" fill="#B38F43" font-size="18" font-weight="900" font-family="serif" letter-spacing="5">
+      A I T E C
+    </text>
+    <path d="M -50,18 Q -25,20 -10,18 Q 0,17 10,18 Q 25,20 50,18" fill="none" stroke="url(#aitecGoldGrad)" stroke-width="1.2" />
+  </g>
+
+  <g transform="translate(150, 158)">
+    <ellipse cx="0" cy="0" rx="56" ry="24" fill="none" stroke="url(#aitecGoldGrad)" stroke-width="3.5" transform="rotate(-28)" />
+    <ellipse cx="0" cy="0" rx="50" ry="18" fill="none" stroke="#29235D" stroke-width="1" opacity="0.3" transform="rotate(-28)" />
+    <circle cx="-38" cy="14" r="3.5" fill="#D3B673" />
+    <circle cx="42" cy="-14" r="3" fill="#D3B673" />
+    <path d="M -16,14 C -20,2 -16,-10 -6,-16 C -3,-18 -1,-14 -4,-10 C -10,-4 -11,8 -6,14 Z" fill="#29235D" />
+    <circle cx="-14" cy="-20" r="4.5" fill="#29235D" />
+    <polygon points="-22,-24 -14,-27 -6,-24 -14,-21" fill="#D3B673" />
+    <path d="M 12,14 C 18,0 14,-12 4,-18 C 1,-20 0,-16 3,-12 C 9,-6 10,6 4,14 Z" fill="#29235D" />
+    <circle cx="12" cy="-22" r="4.5" fill="#29235D" />
+    <polygon points="4,-26 12,-29 20,-26 12,-23" fill="#D3B673" />
+    <g transform="translate(0, -32)">
+      <polygon points="0,-8 2.4,-2.4 8,-2.4 3.5,1.2 5.2,7 0,3.5 -5.2,7 -3.5,1.2 -8,-2.4 -2.4,-2.4" fill="url(#aitecGoldGlow)" stroke="#B38F43" stroke-width="0.8" />
+    </g>
+    <path d="M -32,18 C -14,24 14,24 32,18 C 20,26 -20,26 -32,18 Z" fill="url(#aitecGoldGrad)" />
+  </g>
+
+  <text fill="#B38F43" font-size="8" font-weight="bold" font-family="sans-serif">
+    <textPath href="#innerArabicPath" startOffset="50%" text-anchor="middle">
+      الآفاق الدولية للتدريب والاستشارات التربوية
+    </textPath>
+  </text>
+</svg>

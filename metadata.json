@@ -1,0 +1,6 @@
+{
+  "name": "AITEC Platform",
+  "description": "Al-Afak International For Training And Educational Consultants - Interactive learning platform for Arabic language, Holy Quran, and Tajweed with granular trainer permissions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
