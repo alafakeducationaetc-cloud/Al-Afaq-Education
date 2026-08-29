@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useI18n } from '../../lib/i18n';
-import { SURAH_LIST, fetchAyahFromAPI, getAyahText, SurahMeta } from '../../data/quranData';
+import {
+  SURAH_LIST,
+  fetchAyahFromAPI,
+  getAyahText,
+  SurahMeta,
+  smartSearchQuran,
+  FAMOUS_VERSES_PRESETS,
+  SearchResultItem,
+} from '../../data/quranData';
 import { ScreenSnippetModal } from './ScreenSnippetModal';
 import {
   FileText,
@@ -23,6 +31,7 @@ import {
   ChevronRight,
   Scissors,
   Copy,
+  Bookmark,
 } from 'lucide-react';
 
 export type InsertCategory = 'FILE' | 'IMAGE' | 'AYAH' | 'SCREENSHOT';
@@ -81,8 +90,9 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
   const [selectedAyahNum, setSelectedAyahNum] = useState<number>(1);
   const [ayahCustomText, setAyahCustomText] = useState<string>('بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ');
   const [isLoadingAyah, setIsLoadingAyah] = useState<boolean>(false);
-  const [surahSearchQuery, setSurahSearchQuery] = useState<string>('');
-  const [ayahFontSize, setAyahFontSize] = useState<number>(30);
+  const [quranSearchQuery, setQuranSearchQuery] = useState<string>('');
+  const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
+  const [ayahFontSize, setAyahFontSize] = useState<number>(28);
 
   // Screenshot & Snipping Studio State
   const [rawCapturedImage, setRawCapturedImage] = useState<string | null>(null);
@@ -90,6 +100,16 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
+
+  // Trigger Smart Search on Query Change
+  useEffect(() => {
+    if (!quranSearchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const results = smartSearchQuran(quranSearchQuery);
+    setSearchResults(results);
+  }, [quranSearchQuery]);
 
   // Fetch verse dynamically whenever surah or ayah changes
   useEffect(() => {
@@ -120,10 +140,11 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
 
   const currentSurah = SURAH_LIST.find(s => s.number === selectedSurahNum) || SURAH_LIST[0];
 
+  // Filtered Surahs for dropdown
   const filteredSurahs = SURAH_LIST.filter(s =>
-    s.nameArabic.includes(surahSearchQuery) ||
-    s.nameEnglish.toLowerCase().includes(surahSearchQuery.toLowerCase()) ||
-    String(s.number).includes(surahSearchQuery)
+    s.nameArabic.includes(quranSearchQuery) ||
+    s.nameEnglish.toLowerCase().includes(quranSearchQuery.toLowerCase()) ||
+    String(s.number).includes(quranSearchQuery)
   );
 
   // Surah change
@@ -150,6 +171,24 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
       setSelectedSurahNum(prev => prev - 1);
       setSelectedAyahNum(prevSurah ? prevSurah.ayahCount : 1);
     }
+  };
+
+  // Select a search result item
+  const handleSelectSearchResult = (item: SearchResultItem) => {
+    setSelectedSurahNum(item.surahNumber);
+    setSelectedAyahNum(item.ayahNumber || 1);
+    if (item.ayahText) {
+      setAyahCustomText(item.ayahText);
+    }
+    setQuranSearchQuery('');
+    setSearchResults([]);
+  };
+
+  // Select a famous verse preset
+  const handleSelectPreset = (preset: typeof FAMOUS_VERSES_PRESETS[0]) => {
+    setSelectedSurahNum(preset.surahNumber);
+    setSelectedAyahNum(preset.ayahNumber);
+    setAyahCustomText(preset.ayahText);
   };
 
   // File Upload
@@ -291,13 +330,13 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
-        <div className="bg-white rounded-3xl max-w-2xl w-full border border-[#29235D]/15 shadow-2xl overflow-hidden my-4 max-h-[92vh] flex flex-col">
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 md:p-6 animate-in fade-in duration-200">
+        <div className="bg-white rounded-3xl max-w-4xl w-full border border-[#29235D]/15 shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col">
           
           {/* Header */}
-          <div className="bg-gradient-to-r from-[#29235D] to-[#1D1845] text-white p-4 sm:p-5 flex items-center justify-between flex-shrink-0">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-[#D3B673]/20 border border-[#D3B673]/40 flex items-center justify-center text-[#D3B673]">
+          <div className="bg-gradient-to-r from-[#29235D] to-[#1D1845] text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-[#D3B673]/20 border border-[#D3B673]/40 flex items-center justify-center text-[#D3B673] shrink-0">
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
@@ -305,7 +344,7 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
                   {isRTL ? 'قائمة الإدراج في السبورة الذكية' : 'Smart Whiteboard Insert Menu'}
                 </h3>
                 <p className="text-[11px] text-[#E8D5A3]">
-                  {isRTL ? 'اختر العنصر ثم حدد موقعه على السبورة بنقرة واحدة' : 'Select element then click on canvas to place'}
+                  {isRTL ? 'اختر العنصر ثم انقر على السبورة لوضعه بدقة في المكان المطلوب' : 'Select element and click canvas to place'}
                 </p>
               </div>
             </div>
@@ -318,167 +357,249 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
           </div>
 
           {/* Main 4 Primary Tabs */}
-          <div className="bg-[#F8F6F0] p-2 border-b border-gray-200 flex items-center gap-1.5 flex-shrink-0 overflow-x-auto text-xs font-bold">
+          <div className="bg-[#F8F6F0] px-3 py-2 border-b border-gray-200 flex items-center gap-2 shrink-0 overflow-x-auto text-xs font-bold">
             
             {/* 1. Quran Ayah Tab */}
             <button
               onClick={() => setActiveTab('AYAH')}
-              className={`flex-1 min-w-[110px] py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 activeTab === 'AYAH'
-                  ? 'bg-[#29235D] text-[#D3B673] shadow-xs'
+                  ? 'bg-[#29235D] text-[#D3B673] shadow-sm'
                   : 'text-[#29235D] hover:bg-white/80'
               }`}
             >
-              <BookOpen className="w-4 h-4" />
-              <span>{isRTL ? 'آية قرآنية' : 'Quranic Ayah'}</span>
+              <BookOpen className="w-4 h-4 text-[#D3B673]" />
+              <span>{isRTL ? 'آية قرآنية ذكية' : 'Smart Quranic Ayah'}</span>
             </button>
 
             {/* 2. Screenshot Tab */}
             <button
               onClick={() => setActiveTab('SCREENSHOT')}
-              className={`flex-1 min-w-[110px] py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 activeTab === 'SCREENSHOT'
-                  ? 'bg-[#29235D] text-[#D3B673] shadow-xs'
+                  ? 'bg-[#29235D] text-[#D3B673] shadow-sm'
                   : 'text-[#29235D] hover:bg-white/80'
               }`}
             >
-              <Scissors className="w-4 h-4" />
+              <Scissors className="w-4 h-4 text-[#D3B673]" />
               <span>{isRTL ? 'قص وتحديد الشاشة' : 'Screenshot & Snip'}</span>
             </button>
 
             {/* 3. Image Tab */}
             <button
               onClick={() => setActiveTab('IMAGE')}
-              className={`flex-1 min-w-[100px] py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              className={`flex-1 min-w-[110px] py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 activeTab === 'IMAGE'
-                  ? 'bg-[#29235D] text-[#D3B673] shadow-xs'
+                  ? 'bg-[#29235D] text-[#D3B673] shadow-sm'
                   : 'text-[#29235D] hover:bg-white/80'
               }`}
             >
-              <ImageIcon className="w-4 h-4" />
-              <span>{isRTL ? 'صورة' : 'Image'}</span>
+              <ImageIcon className="w-4 h-4 text-[#D3B673]" />
+              <span>{isRTL ? 'صورة توضيحية' : 'Image'}</span>
             </button>
 
             {/* 4. File Tab */}
             <button
               onClick={() => setActiveTab('FILE')}
-              className={`flex-1 min-w-[100px] py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              className={`flex-1 min-w-[110px] py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 activeTab === 'FILE'
-                  ? 'bg-[#29235D] text-[#D3B673] shadow-xs'
+                  ? 'bg-[#29235D] text-[#D3B673] shadow-sm'
                   : 'text-[#29235D] hover:bg-white/80'
               }`}
             >
-              <FileText className="w-4 h-4" />
-              <span>{isRTL ? 'ملف' : 'File'}</span>
+              <FileText className="w-4 h-4 text-[#D3B673]" />
+              <span>{isRTL ? 'ملف / مستند' : 'File'}</span>
             </button>
 
           </div>
 
           {/* Tab Contents */}
-          <div className="p-5 overflow-y-auto flex-1 space-y-4 text-xs">
+          <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4 text-xs">
             
-            {/* TAB 1: QURANIC AYAH (السورة والآية الدقيقة لجميع الـ 114 سورة) */}
+            {/* TAB 1: QURANIC AYAH (بحث ذكي + اختيار دقيق لجميع السور الـ 114 + بطاقة معاينة متكاملة) */}
             {activeTab === 'AYAH' && (
               <div className="space-y-4">
-                <div className="bg-[#FBF9F4] p-3 rounded-2xl border border-[#D3B673]/40 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-[#D3B673]" />
-                    <span className="font-bold text-[#29235D]">
-                      {isRTL ? 'اختيار أي سورة وأي آية من القرآن الكريم كاملاً (114 سورة)' : 'Select Surah & Ayah from complete Quran'}
+                
+                {/* Smart Search Bar */}
+                <div className="bg-[#FBF9F4] p-3.5 rounded-2xl border border-[#D3B673]/40 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-[#29235D] flex items-center gap-1.5 text-xs">
+                      <Search className="w-4 h-4 text-[#D3B673]" />
+                      <span>{isRTL ? 'بحث ذكي وسريع في القرآن الكريم' : 'Smart Quran Search'}</span>
+                    </label>
+                    <span className="text-[10px] text-gray-500">
+                      {isRTL ? 'ابحث باسم السورة، رقمها، صيغة (2:255)، أو بكلمات من الآية' : 'Search by Surah, (2:255), or verse words'}
                     </span>
                   </div>
-                  <span className="text-[11px] text-[#29235D] font-mono bg-white px-2 py-0.5 rounded-lg border border-gray-200">
-                    {currentSurah.type === 'Meccan' ? (isRTL ? 'مكية' : 'Meccan') : (isRTL ? 'مدنية' : 'Medinan')} • {currentSurah.ayahCount} {isRTL ? 'آية' : 'Ayahs'}
-                  </span>
+
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder={isRTL ? 'اكتب اسم السورة، مثل: البقرة، الكهف، 2:255، أو نص مثل: الله لا إله إلا هو...' : 'Search by Surah, e.g. Kahf, 2:255, or text...'}
+                      value={quranSearchQuery}
+                      onChange={e => setQuranSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-[#29235D] font-bold outline-none focus:ring-2 focus:ring-[#29235D] shadow-xs"
+                      dir="auto"
+                    />
+                    {quranSearchQuery ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuranSearchQuery('');
+                          setSearchResults([]);
+                        }}
+                        className="absolute left-3 top-3 text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    ) : (
+                      <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+                    )}
+
+                    {/* Instant Search Results Dropdown */}
+                    {searchResults.length > 0 && (
+                      <div className="absolute z-20 left-0 right-0 top-full mt-1.5 bg-white rounded-2xl border border-[#29235D]/20 shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-100">
+                        {searchResults.map((item, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => handleSelectSearchResult(item)}
+                            className="p-2.5 hover:bg-[#FBF9F4] cursor-pointer transition-colors flex items-center justify-between gap-3 text-right"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-[#29235D] text-xs">
+                                  سورة {item.surahNameArabic} ({item.surahNameEnglish})
+                                </span>
+                                {item.ayahNumber && (
+                                  <span className="text-[10px] bg-[#29235D]/10 text-[#29235D] px-2 py-0.5 rounded font-mono font-bold">
+                                    الآية {item.ayahNumber}
+                                  </span>
+                                )}
+                                {item.matchHighlight && (
+                                  <span className="text-[10px] bg-[#D3B673]/20 text-[#29235D] px-2 py-0.5 rounded">
+                                    {item.matchHighlight}
+                                  </span>
+                                )}
+                              </div>
+                              {item.ayahText && (
+                                <p className="text-[11px] text-gray-600 font-serif truncate mt-0.5">
+                                  {item.ayahText}
+                                </p>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-[#D3B673] font-bold shrink-0">
+                              اختيار ↵
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Famous Verses Quick Chips */}
+                  <div>
+                    <div className="flex items-center gap-1 text-[11px] text-[#29235D] font-bold mb-1.5">
+                      <Bookmark className="w-3 h-3 text-[#D3B673]" />
+                      <span>{isRTL ? 'الآيات والسور الأكثر استخداماً للدروس:' : 'Popular Verses Shortcuts:'}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] no-scrollbar">
+                      {FAMOUS_VERSES_PRESETS.map(preset => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => handleSelectPreset(preset)}
+                          className={`px-2.5 py-1 rounded-lg border whitespace-nowrap transition-all cursor-pointer font-bold ${
+                            selectedSurahNum === preset.surahNumber && selectedAyahNum === preset.ayahNumber
+                              ? 'bg-[#29235D] text-[#D3B673] border-[#29235D]'
+                              : 'bg-white text-gray-700 border-gray-200 hover:border-[#29235D] hover:bg-[#FBF9F4]'
+                          }`}
+                        >
+                          {preset.title}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
-                {/* Surah & Ayah Controls */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Surah Select with Search */}
-                  <div>
-                    <label className="block text-gray-700 font-bold mb-1">
-                      {isRTL ? 'السورة الكريمة' : 'Surah'}
-                    </label>
-                    <div className="relative mb-1.5">
-                      <Search className="w-3.5 h-3.5 text-gray-400 absolute right-3 top-2.5" />
-                      <input
-                        type="text"
-                        placeholder={isRTL ? 'بحث عن سورة (بالاسم أو الرقم)...' : 'Search surah...'}
-                        value={surahSearchQuery}
-                        onChange={e => setSurahSearchQuery(e.target.value)}
-                        className="w-full pl-3 pr-8 py-1.5 rounded-xl border border-gray-300 text-xs text-[#29235D] outline-none focus:border-[#29235D]"
-                      />
+                {/* Surah & Ayah Direct Selectors (2-Column Grid) */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+                  {/* Surah Dropdown (5 Columns) */}
+                  <div className="md:col-span-5 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-gray-700 font-bold">
+                        {isRTL ? 'السورة الكريمة' : 'Surah'}
+                      </label>
+                      <span className="text-[10px] text-gray-500 font-mono">
+                        {currentSurah.type === 'Meccan' ? (isRTL ? 'مكية' : 'Meccan') : (isRTL ? 'مدنية' : 'Medinan')} • {currentSurah.ayahCount} {isRTL ? 'آية' : 'ayahs'}
+                      </span>
                     </div>
                     <select
                       value={selectedSurahNum}
                       onChange={e => handleSurahChange(Number(e.target.value))}
-                      size={4}
-                      className="w-full p-2 rounded-xl border border-gray-300 bg-white font-bold text-[#29235D] outline-none text-xs"
+                      className="w-full p-2.5 rounded-xl border border-gray-300 bg-white font-bold text-[#29235D] outline-none text-xs focus:ring-2 focus:ring-[#29235D]"
                     >
-                      {filteredSurahs.map(s => (
-                        <option key={s.number} value={s.number} className="py-1">
-                          {s.number}. {s.nameArabic} ({s.nameEnglish}) - {s.ayahCount} {isRTL ? 'آية' : 'ayahs'}
+                      {SURAH_LIST.map(s => (
+                        <option key={s.number} value={s.number}>
+                          {s.number}. سورة {s.nameArabic} ({s.nameEnglish}) - {s.ayahCount} آية
                         </option>
                       ))}
                     </select>
                   </div>
 
-                  {/* Ayah Select, Quick Stepper, & Font Size */}
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-gray-700 font-bold mb-1">
-                        {isRTL ? `رقم الآية (من 1 إلى ${currentSurah.ayahCount})` : `Ayah Number (1 to ${currentSurah.ayahCount})`}
-                      </label>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={handlePrevAyah}
-                          className="p-2 rounded-xl border border-gray-300 hover:bg-gray-100 text-[#29235D] cursor-pointer"
-                          title={isRTL ? 'الآية السابقة' : 'Previous Ayah'}
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                        <input
-                          type="number"
-                          min={1}
-                          max={currentSurah.ayahCount}
-                          value={selectedAyahNum}
-                          onChange={e => {
-                            const val = Math.max(1, Math.min(currentSurah.ayahCount, Number(e.target.value) || 1));
-                            setSelectedAyahNum(val);
-                          }}
-                          className="flex-1 px-3 py-2 rounded-xl border border-gray-300 font-mono font-bold text-[#29235D] text-sm text-center outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleNextAyah}
-                          className="p-2 rounded-xl border border-gray-300 hover:bg-gray-100 text-[#29235D] cursor-pointer"
-                          title={isRTL ? 'الآية التالية' : 'Next Ayah'}
-                        >
-                          <ChevronLeft className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <p className="text-[10px] text-gray-500 mt-1">
-                        {isRTL ? `سورة ${currentSurah.nameArabic} تحتوي على ${currentSurah.ayahCount} آية` : `Total ${currentSurah.ayahCount} verses`}
-                      </p>
+                  {/* Ayah Stepper (4 Columns) */}
+                  <div className="md:col-span-4 space-y-1">
+                    <label className="block text-gray-700 font-bold">
+                      {isRTL ? `رقم الآية (1 - ${currentSurah.ayahCount})` : `Ayah (1 - ${currentSurah.ayahCount})`}
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={handlePrevAyah}
+                        className="p-2 rounded-xl border border-gray-300 hover:bg-gray-100 text-[#29235D] cursor-pointer"
+                        title={isRTL ? 'الآية السابقة' : 'Previous Ayah'}
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                      <input
+                        type="number"
+                        min={1}
+                        max={currentSurah.ayahCount}
+                        value={selectedAyahNum}
+                        onChange={e => {
+                          const val = Math.max(1, Math.min(currentSurah.ayahCount, Number(e.target.value) || 1));
+                          setSelectedAyahNum(val);
+                        }}
+                        className="w-full px-2 py-2 rounded-xl border border-gray-300 font-mono font-bold text-[#29235D] text-sm text-center outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleNextAyah}
+                        className="p-2 rounded-xl border border-gray-300 hover:bg-gray-100 text-[#29235D] cursor-pointer"
+                        title={isRTL ? 'الآية التالية' : 'Next Ayah'}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
                     </div>
+                  </div>
 
-                    <div>
-                      <label className="block text-gray-700 font-bold mb-1">
-                        {isRTL ? 'حجم خط الآية على السبورة' : 'Ayah Font Size'}
+                  {/* Font Size Slider (3 Columns) */}
+                  <div className="md:col-span-3 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-gray-700 font-bold">
+                        {isRTL ? 'حجم الخط' : 'Font Size'}
                       </label>
-                      <div className="flex items-center gap-2 bg-[#FBF9F4] p-2 rounded-xl border border-gray-200">
-                        <input
-                          type="range"
-                          min="20"
-                          max="46"
-                          step="2"
-                          value={ayahFontSize}
-                          onChange={e => setAyahFontSize(Number(e.target.value))}
-                          className="flex-1 accent-[#29235D]"
-                        />
-                        <span className="font-mono font-bold text-[#29235D] text-xs">{ayahFontSize}px</span>
-                      </div>
+                      <span className="font-mono font-bold text-[#29235D] text-[11px]">{ayahFontSize}px</span>
+                    </div>
+                    <div className="flex items-center h-[38px] px-2 bg-[#FBF9F4] rounded-xl border border-gray-200">
+                      <input
+                        type="range"
+                        min="20"
+                        max="46"
+                        step="2"
+                        value={ayahFontSize}
+                        onChange={e => setAyahFontSize(Number(e.target.value))}
+                        className="w-full accent-[#29235D]"
+                      />
                     </div>
                   </div>
                 </div>
@@ -503,27 +624,29 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
                   />
                 </div>
 
-                {/* Live Islamic Card Preview */}
-                <div className="bg-gradient-to-r from-[#29235D] via-[#221D4E] to-[#17133B] p-4 rounded-2xl text-white text-center shadow-md border-2 border-[#D3B673]">
-                  <div className="flex items-center justify-between border-b border-[#D3B673]/30 pb-2 mb-2">
-                    <span className="text-xs font-bold text-[#D3B673] flex items-center gap-1">
+                {/* Live Islamic Card Preview with generous padding & no text clipping */}
+                <div className="bg-gradient-to-r from-[#29235D] via-[#221D4E] to-[#17133B] p-4 sm:p-5 rounded-2xl text-white text-center shadow-md border-2 border-[#D3B673]">
+                  <div className="flex items-center justify-between border-b border-[#D3B673]/30 pb-2 mb-3">
+                    <span className="text-xs font-bold text-[#D3B673] flex items-center gap-1.5">
                       <span>📖</span>
                       <span>{isRTL ? `سورة ${currentSurah.nameArabic}` : `Surah ${currentSurah.nameEnglish}`}</span>
                     </span>
-                    <span className="text-xs font-bold text-[#E8D5A3]">
+                    <span className="text-xs font-bold text-[#E8D5A3] bg-white/10 px-2.5 py-0.5 rounded-full">
                       {isRTL ? `الآية ${selectedAyahNum}` : `Ayah ${selectedAyahNum}`}
                     </span>
                   </div>
-                  <p className="font-serif text-lg sm:text-xl text-[#FFFFFF] leading-loose px-2 py-2 select-text" dir="rtl">
-                    {isLoadingAyah ? (
-                      <span className="text-gray-400 text-sm flex items-center justify-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-[#D3B673]" />
-                        <span>{isRTL ? 'جاري جلب نص الآية من المصحف...' : 'Loading ayah...'}</span>
-                      </span>
-                    ) : (
-                      ayahCustomText
-                    )}
-                  </p>
+                  <div className="max-h-52 overflow-y-auto px-2 py-1 select-text">
+                    <p className="font-serif text-lg sm:text-xl text-[#FFFFFF] leading-loose whitespace-pre-wrap break-words" dir="rtl">
+                      {isLoadingAyah ? (
+                        <span className="text-gray-300 text-sm flex items-center justify-center gap-2 py-4">
+                          <Loader2 className="w-4 h-4 animate-spin text-[#D3B673]" />
+                          <span>{isRTL ? 'جاري جلب نص الآية الكريمة من المصحف...' : 'Loading ayah...'}</span>
+                        </span>
+                      ) : (
+                        ayahCustomText
+                      )}
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -531,7 +654,7 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
             {/* TAB 2: SCREENSHOT & AREA SNIPPING (قص وتحديد لقطة الشاشة مباشرة) */}
             {activeTab === 'SCREENSHOT' && (
               <div className="space-y-4">
-                <div className="bg-[#FBF9F4] p-3 rounded-2xl border border-[#D3B673]/30 space-y-1.5">
+                <div className="bg-[#FBF9F4] p-3.5 rounded-2xl border border-[#D3B673]/30 space-y-1.5">
                   <p className="font-bold text-[#29235D] text-xs flex items-center gap-1.5">
                     <Scissors className="w-4 h-4 text-[#D3B673]" />
                     <span>{isRTL ? 'أداة قص وتحديد لقطات الشاشة المباشرة' : 'Live Screen Snipping & Cropping'}</span>
@@ -539,19 +662,19 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
                   <p className="text-[11px] text-gray-600">
                     {isRTL
                       ? 'التقط الشاشة وسيفتح لك فوراً ستوديو القص التفاعلي لتحديد وقص الجزء الذي تريده بدقة.'
-                      : 'Capture screen and interactively drag the golden crop box to choose the exact snippet.'}
+                      : 'Capture screen and interactively drag the crop box to choose the exact snippet.'}
                   </p>
                 </div>
 
                 {captureError && (
                   <div className="p-3 bg-red-50 text-red-700 rounded-xl text-xs border border-red-200 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4" />
+                    <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>{captureError}</span>
                   </div>
                 )}
 
                 {/* Main Capture Triggers */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   
                   {/* Button 1: Live Capture and Crop */}
                   <button
@@ -642,29 +765,29 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
             {/* TAB 3: IMAGE (صورة: رابط / رفع) */}
             {activeTab === 'IMAGE' && (
               <div className="space-y-4">
-                <div className="flex items-center gap-2 bg-[#F8F6F0] p-1 rounded-xl border border-gray-200">
+                <div className="flex items-center gap-2 bg-[#F8F6F0] p-1.5 rounded-xl border border-gray-200">
                   <button
                     type="button"
                     onClick={() => setImageMode('COMPUTER')}
-                    className={`flex-1 py-1.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    className={`flex-1 py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
                       imageMode === 'COMPUTER'
                         ? 'bg-white text-[#29235D] shadow-xs'
                         : 'text-gray-600 hover:text-[#29235D]'
                     }`}
                   >
-                    <Upload className="w-3.5 h-3.5" />
+                    <Upload className="w-4 h-4 text-[#D3B673]" />
                     <span>{isRTL ? 'من الحاسوب' : 'From Computer'}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setImageMode('LINK')}
-                    className={`flex-1 py-1.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    className={`flex-1 py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
                       imageMode === 'LINK'
                         ? 'bg-white text-[#29235D] shadow-xs'
                         : 'text-gray-600 hover:text-[#29235D]'
                     }`}
                   >
-                    <LinkIcon className="w-3.5 h-3.5" />
+                    <LinkIcon className="w-4 h-4 text-[#D3B673]" />
                     <span>{isRTL ? 'رابط ويب (URL)' : 'Web URL Link'}</span>
                   </button>
                 </div>
@@ -698,7 +821,7 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
                         <img
                           src={uploadedImageData}
                           alt="Uploaded"
-                          className="max-h-36 mx-auto rounded-xl object-contain border border-gray-300"
+                          className="max-h-40 mx-auto rounded-xl object-contain border border-gray-300"
                         />
                       </div>
                     )}
@@ -714,7 +837,7 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
                         placeholder="https://example.com/image.png"
                         value={imageUrl}
                         onChange={e => setImageUrl(e.target.value)}
-                        className="w-full px-3.5 py-2 rounded-xl border border-gray-300 text-xs text-[#29235D] outline-none"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs text-[#29235D] outline-none focus:ring-2 focus:ring-[#29235D]"
                       />
                     </div>
                   </div>
@@ -738,29 +861,29 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
             {/* TAB 4: FILE (ملف: رابط / رفع) */}
             {activeTab === 'FILE' && (
               <div className="space-y-4">
-                <div className="flex items-center gap-2 bg-[#F8F6F0] p-1 rounded-xl border border-gray-200">
+                <div className="flex items-center gap-2 bg-[#F8F6F0] p-1.5 rounded-xl border border-gray-200">
                   <button
                     type="button"
                     onClick={() => setFileMode('COMPUTER')}
-                    className={`flex-1 py-1.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    className={`flex-1 py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
                       fileMode === 'COMPUTER'
                         ? 'bg-white text-[#29235D] shadow-xs'
                         : 'text-gray-600 hover:text-[#29235D]'
                     }`}
                   >
-                    <Upload className="w-3.5 h-3.5" />
+                    <Upload className="w-4 h-4 text-[#D3B673]" />
                     <span>{isRTL ? 'من الحاسوب (PDF, Word)' : 'From Computer'}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setFileMode('LINK')}
-                    className={`flex-1 py-1.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    className={`flex-1 py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
                       fileMode === 'LINK'
                         ? 'bg-white text-[#29235D] shadow-xs'
                         : 'text-gray-600 hover:text-[#29235D]'
                     }`}
                   >
-                    <LinkIcon className="w-3.5 h-3.5" />
+                    <LinkIcon className="w-4 h-4 text-[#D3B673]" />
                     <span>{isRTL ? 'رابط ملف سحابي' : 'File Web Link'}</span>
                   </button>
                 </div>
@@ -819,7 +942,7 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
                         placeholder="https://drive.google.com/..."
                         value={fileUrl}
                         onChange={e => setFileUrl(e.target.value)}
-                        className="w-full px-3.5 py-2 rounded-xl border border-gray-300 text-xs text-[#29235D] outline-none"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs text-[#29235D] outline-none focus:ring-2 focus:ring-[#29235D]"
                       />
                     </div>
                   </div>
@@ -843,13 +966,13 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
           </div>
 
           {/* Footer with Click-to-Place Guidance & Confirmation */}
-          <div className="p-4 bg-[#F8F6F0] border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3 flex-shrink-0">
-            <div className="flex items-center gap-1.5 text-[11px] text-gray-600">
+          <div className="p-4 bg-[#F8F6F0] border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-2 text-xs text-gray-700">
               <span className="text-base">🎯</span>
-              <span>
+              <span className="font-semibold">
                 {isRTL
                   ? 'عند الضغط على "تأكيد وإدراج"، انقر بالمؤشر على السبورة لتحديد مكان العنصر بدقة.'
-                  : 'After confirming, click on the whiteboard to set the exact position.'}
+                  : 'After confirming, click anywhere on the canvas to place the item.'}
               </span>
             </div>
 
@@ -857,14 +980,14 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 sm:flex-none px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100 font-bold cursor-pointer"
+                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100 font-bold cursor-pointer transition-colors"
               >
                 {isRTL ? 'إلغاء' : 'Cancel'}
               </button>
               <button
                 type="button"
                 onClick={handleConfirm}
-                className="flex-1 sm:flex-none px-5 py-2 rounded-xl bg-gradient-to-r from-[#29235D] to-[#1D1845] text-[#D3B673] hover:brightness-110 font-bold shadow-md cursor-pointer flex items-center justify-center gap-1.5 border border-[#D3B673]/40"
+                className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#29235D] to-[#1D1845] text-[#D3B673] hover:brightness-110 font-bold shadow-md cursor-pointer flex items-center justify-center gap-2 border border-[#D3B673]/40 transition-all"
               >
                 <Check className="w-4 h-4" />
                 <span>{isRTL ? 'تأكيد وتحديد المكان على السبورة' : 'Place on Whiteboard'}</span>
@@ -888,3 +1011,4 @@ export const WhiteboardInsertModal: React.FC<WhiteboardInsertModalProps> = ({
     </>
   );
 };
+

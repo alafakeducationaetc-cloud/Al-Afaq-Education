@@ -29,6 +29,13 @@ import {
   initialLessons,
   initialNotifications,
 } from '../data/seedData';
+import {
+  saveCloudDoc,
+  deleteCloudDoc,
+  subscribeToCloudCollection,
+  subscribeToCloudDoc,
+  CLOUD_COLLECTIONS,
+} from '../lib/cloudStorage';
 
 const defaultTeacherPermissions: TeacherPermissions = {
   canCreateLessons: true,
@@ -55,6 +62,7 @@ interface AppContextType {
   lessons: Lesson[];
   notifications: NotificationItem[];
   settings: PlatformSettings;
+  isCloudSynced: boolean;
   
   // Auth & Permissions
   loginWithCode: (code: string, nameOrPass?: string, requiredRole?: 'STUDENT' | 'TEACHER' | 'ADMIN') => { success: boolean; message?: string };
@@ -151,7 +159,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Local storage keys
+  // Local storage keys helper
   const loadStored = <T,>(key: string, fallback: T): T => {
     try {
       const item = localStorage.getItem(`alteq_${key}`);
@@ -172,6 +180,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activities, setActivities] = useState<Activity[]>(() => loadStored('activities', initialActivities));
   const [lessons, setLessons] = useState<Lesson[]>(() => loadStored('lessons', initialLessons));
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => loadStored('notifications', initialNotifications));
+  const [isCloudSynced, setIsCloudSynced] = useState<boolean>(true);
   
   // Current user state (defaults to null so the public Home page is loaded when visiting)
   const [currentUser, setCurrentUser] = useState<User | StudentProfile | TeacherProfile | null>(() => {
@@ -191,7 +200,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return null;
   });
 
-  // Persist to local storage
+  // Local storage persistence
   useEffect(() => { localStorage.setItem('alteq_settings', JSON.stringify(settings)); }, [settings]);
   useEffect(() => { localStorage.setItem('alteq_admin_profile', JSON.stringify(adminProfile)); }, [adminProfile]);
   useEffect(() => { localStorage.setItem('alteq_students', JSON.stringify(students)); }, [students]);
@@ -210,6 +219,138 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.removeItem('alteq_current_user_id');
     }
   }, [currentUser]);
+
+  // ==========================================
+  // REAL-TIME CLOUD SYNC (FIRESTORE LISTENERS)
+  // ==========================================
+  useEffect(() => {
+    // 1. Subscribe to Students
+    const unsubStudents = subscribeToCloudCollection<StudentProfile>(
+      CLOUD_COLLECTIONS.STUDENTS,
+      cloudStudents => {
+        if (cloudStudents && cloudStudents.length > 0) {
+          setStudents(cloudStudents);
+          setIsCloudSynced(true);
+        }
+      }
+    );
+
+    // 2. Subscribe to Teachers
+    const unsubTeachers = subscribeToCloudCollection<TeacherProfile>(
+      CLOUD_COLLECTIONS.TEACHERS,
+      cloudTeachers => {
+        if (cloudTeachers && cloudTeachers.length > 0) {
+          setTeachers(cloudTeachers);
+        }
+      }
+    );
+
+    // 3. Subscribe to Programs
+    const unsubPrograms = subscribeToCloudCollection<Program>(
+      CLOUD_COLLECTIONS.PROGRAMS,
+      cloudPrograms => {
+        if (cloudPrograms && cloudPrograms.length > 0) {
+          setPrograms(cloudPrograms);
+        }
+      }
+    );
+
+    // 4. Subscribe to Subscriptions
+    const unsubSubscriptions = subscribeToCloudCollection<Subscription>(
+      CLOUD_COLLECTIONS.SUBSCRIPTIONS,
+      cloudSubs => {
+        if (cloudSubs && cloudSubs.length > 0) {
+          setSubscriptions(cloudSubs);
+        }
+      }
+    );
+
+    // 5. Subscribe to Classes
+    const unsubClasses = subscribeToCloudCollection<ClassSession>(
+      CLOUD_COLLECTIONS.CLASSES,
+      cloudClasses => {
+        if (cloudClasses && cloudClasses.length > 0) {
+          setClasses(cloudClasses);
+        }
+      }
+    );
+
+    // 6. Subscribe to Attendance
+    const unsubAttendance = subscribeToCloudCollection<AttendanceRecord>(
+      CLOUD_COLLECTIONS.ATTENDANCE,
+      cloudAtt => {
+        if (cloudAtt && cloudAtt.length > 0) {
+          setAttendance(cloudAtt);
+        }
+      }
+    );
+
+    // 7. Subscribe to Activities
+    const unsubActivities = subscribeToCloudCollection<Activity>(
+      CLOUD_COLLECTIONS.ACTIVITIES,
+      cloudActs => {
+        if (cloudActs && cloudActs.length > 0) {
+          setActivities(cloudActs);
+        }
+      }
+    );
+
+    // 8. Subscribe to Lessons
+    const unsubLessons = subscribeToCloudCollection<Lesson>(
+      CLOUD_COLLECTIONS.LESSONS,
+      cloudLsns => {
+        if (cloudLsns && cloudLsns.length > 0) {
+          setLessons(cloudLsns);
+        }
+      }
+    );
+
+    // 9. Subscribe to Notifications
+    const unsubNotifications = subscribeToCloudCollection<NotificationItem>(
+      CLOUD_COLLECTIONS.NOTIFICATIONS,
+      cloudNotifs => {
+        if (cloudNotifs && cloudNotifs.length > 0) {
+          setNotifications(cloudNotifs);
+        }
+      }
+    );
+
+    // 10. Subscribe to Platform Settings Doc
+    const unsubSettings = subscribeToCloudDoc<PlatformSettings>(
+      CLOUD_COLLECTIONS.SETTINGS,
+      'global_settings',
+      cloudSettings => {
+        if (cloudSettings) {
+          setSettings(prev => ({ ...prev, ...cloudSettings }));
+        }
+      }
+    );
+
+    // 11. Subscribe to Admin Profile Doc
+    const unsubAdmin = subscribeToCloudDoc<User>(
+      CLOUD_COLLECTIONS.ADMIN_PROFILE,
+      'main_admin',
+      cloudAdmin => {
+        if (cloudAdmin) {
+          setAdminProfile(prev => ({ ...prev, ...cloudAdmin }));
+        }
+      }
+    );
+
+    return () => {
+      unsubStudents();
+      unsubTeachers();
+      unsubPrograms();
+      unsubSubscriptions();
+      unsubClasses();
+      unsubAttendance();
+      unsubActivities();
+      unsubLessons();
+      unsubNotifications();
+      unsubSettings();
+      unsubAdmin();
+    };
+  }, []);
 
   // Combined users list
   const users: User[] = [adminProfile, ...teachers, ...students];
@@ -410,6 +551,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updatedAdmin = { ...adminProfile, ...updates };
       setAdminProfile(updatedAdmin);
       setCurrentUser(updatedAdmin);
+      saveCloudDoc(CLOUD_COLLECTIONS.ADMIN_PROFILE, 'main_admin', updatedAdmin);
     } else if (currentUser.role === 'TEACHER') {
       updateTeacher(currentUser.id, updates as Partial<TeacherProfile>);
     } else if (currentUser.role === 'STUDENT') {
@@ -421,8 +563,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateAdminPasscode = (newPasscode: string) => {
     if (!newPasscode || newPasscode.trim().length < 3) return;
     const clean = newPasscode.trim();
-    setSettings(prev => ({ ...prev, adminPasscode: clean }));
-    setAdminProfile(prev => ({ ...prev, password: clean }));
+    const updatedSettings = { ...settings, adminPasscode: clean };
+    const updatedAdmin = { ...adminProfile, password: clean };
+    setSettings(updatedSettings);
+    setAdminProfile(updatedAdmin);
+    saveCloudDoc(CLOUD_COLLECTIONS.SETTINGS, 'global_settings', updatedSettings);
+    saveCloudDoc(CLOUD_COLLECTIONS.ADMIN_PROFILE, 'main_admin', updatedAdmin);
   };
 
   // Update password for ANY user (Admin control)
@@ -437,7 +583,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const isTeacher = teachers.some(t => t.id === userId);
     if (isTeacher) {
-      setTeachers(prev => prev.map(t => t.id === userId ? { ...t, password: clean } : t));
+      const targetTeacher = teachers.find(t => t.id === userId);
+      if (targetTeacher) {
+        const updated = { ...targetTeacher, password: clean };
+        setTeachers(prev => prev.map(t => t.id === userId ? updated : t));
+        saveCloudDoc(CLOUD_COLLECTIONS.TEACHERS, userId, updated);
+      }
       if (currentUser?.id === userId) {
         setCurrentUser(prev => prev ? { ...prev, password: clean } : null);
       }
@@ -446,7 +597,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const isStudent = students.some(s => s.id === userId);
     if (isStudent) {
-      setStudents(prev => prev.map(s => s.id === userId ? { ...s, password: clean } : s));
+      const targetStudent = students.find(s => s.id === userId);
+      if (targetStudent) {
+        const updated = { ...targetStudent, password: clean };
+        setStudents(prev => prev.map(s => s.id === userId ? updated : s));
+        saveCloudDoc(CLOUD_COLLECTIONS.STUDENTS, userId, updated);
+      }
       if (currentUser?.id === userId) {
         setCurrentUser(prev => prev ? { ...prev, password: clean } : null);
       }
@@ -460,6 +616,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (userId === adminProfile.id || userId === 'admin' || userId === adminProfile.code) {
       const updated = { ...adminProfile, avatarUrl: newAvatarUrl };
       setAdminProfile(updated);
+      saveCloudDoc(CLOUD_COLLECTIONS.ADMIN_PROFILE, 'main_admin', updated);
       if (currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN') {
         setCurrentUser(updated);
       }
@@ -468,7 +625,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const isTeacher = teachers.some(t => t.id === userId);
     if (isTeacher) {
-      setTeachers(prev => prev.map(t => t.id === userId ? { ...t, avatarUrl: newAvatarUrl } : t));
+      const target = teachers.find(t => t.id === userId);
+      if (target) {
+        const updated = { ...target, avatarUrl: newAvatarUrl };
+        setTeachers(prev => prev.map(t => t.id === userId ? updated : t));
+        saveCloudDoc(CLOUD_COLLECTIONS.TEACHERS, userId, updated);
+      }
       if (currentUser?.id === userId) {
         setCurrentUser(prev => prev ? { ...prev, avatarUrl: newAvatarUrl } : null);
       }
@@ -477,7 +639,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const isStudent = students.some(s => s.id === userId);
     if (isStudent) {
-      setStudents(prev => prev.map(s => s.id === userId ? { ...s, avatarUrl: newAvatarUrl } : s));
+      const target = students.find(s => s.id === userId);
+      if (target) {
+        const updated = { ...target, avatarUrl: newAvatarUrl };
+        setStudents(prev => prev.map(s => s.id === userId ? updated : s));
+        saveCloudDoc(CLOUD_COLLECTIONS.STUDENTS, userId, updated);
+      }
       if (currentUser?.id === userId) {
         setCurrentUser(prev => prev ? { ...prev, avatarUrl: newAvatarUrl } : null);
       }
@@ -491,13 +658,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logoTextEn?: string,
     logoTextAr?: string
   ) => {
-    setSettings(prev => ({
-      ...prev,
+    const updated = {
+      ...settings,
       logoUrl,
       logoDisplayMode,
       ...(logoTextEn ? { logoTextEn } : {}),
       ...(logoTextAr ? { logoTextAr } : {}),
-    }));
+    };
+    setSettings(updated);
+    saveCloudDoc(CLOUD_COLLECTIONS.SETTINGS, 'global_settings', updated);
   };
 
   // Permission check helper
@@ -514,7 +683,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false;
   };
 
-  // Student CRUD
+  // Student CRUD (with Cloud Firestore sync)
   const addStudent = (data: Omit<StudentProfile, 'id' | 'code' | 'joinedDate'>) => {
     const id = `usr-std-${Date.now()}`;
     const code = `${settings.studentCodePrefix}${1000 + students.length + 1}`;
@@ -526,10 +695,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       joinedDate: new Date().toISOString().split('T')[0],
     };
     setStudents(prev => [newStudent, ...prev]);
+    saveCloudDoc(CLOUD_COLLECTIONS.STUDENTS, id, newStudent);
   };
 
   const updateStudent = (id: string, updates: Partial<StudentProfile>) => {
-    setStudents(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+    setStudents(prev => {
+      const updatedList = prev.map(s => {
+        if (s.id === id) {
+          const updated = { ...s, ...updates };
+          saveCloudDoc(CLOUD_COLLECTIONS.STUDENTS, id, updated);
+          return updated;
+        }
+        return s;
+      });
+      return updatedList;
+    });
     if (currentUser && currentUser.id === id) {
       setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
     }
@@ -537,9 +717,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteStudent = (id: string) => {
     setStudents(prev => prev.filter(s => s.id !== id));
+    deleteCloudDoc(CLOUD_COLLECTIONS.STUDENTS, id);
   };
 
-  // Teacher CRUD (Super Admin authority)
+  // Teacher CRUD (Super Admin authority & Cloud Firestore sync)
   const addTeacher = (data: Omit<TeacherProfile, 'id' | 'code' | 'joinedDate'> & { teacherPermissions?: TeacherPermissions }) => {
     const id = `usr-tea-${Date.now()}`;
     const code = `${settings.teacherCodePrefix}${8000 + teachers.length + 1}`;
@@ -557,10 +738,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       rating: 5.0,
     };
     setTeachers(prev => [newTeacher, ...prev]);
+    saveCloudDoc(CLOUD_COLLECTIONS.TEACHERS, id, newTeacher);
   };
 
   const updateTeacher = (id: string, updates: Partial<TeacherProfile>) => {
-    setTeachers(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+    setTeachers(prev => {
+      const updatedList = prev.map(t => {
+        if (t.id === id) {
+          const updated = { ...t, ...updates };
+          saveCloudDoc(CLOUD_COLLECTIONS.TEACHERS, id, updated);
+          return updated;
+        }
+        return t;
+      });
+      return updatedList;
+    });
     if (currentUser && currentUser.id === id) {
       setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
     }
@@ -568,6 +760,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteTeacher = (id: string) => {
     setTeachers(prev => prev.filter(t => t.id !== id));
+    deleteCloudDoc(CLOUD_COLLECTIONS.TEACHERS, id);
     if (currentUser && currentUser.id === id) {
       setCurrentUser(null);
       localStorage.removeItem('alteq_current_user_id');
@@ -575,54 +768,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateTeacherAvailability = (teacherId: string, slots: TeacherAvailabilitySlot[]) => {
-    setTeachers(prev => prev.map(t => t.id === teacherId ? { ...t, availabilitySlots: slots } : t));
-    if (currentUser && currentUser.id === teacherId) {
-      setCurrentUser(prev => prev ? { ...(prev as TeacherProfile), availabilitySlots: slots } : null);
-    }
+    updateTeacher(teacherId, { availabilitySlots: slots });
   };
 
   const updateTeacherPermissions = (teacherId: string, newPermissions: Partial<TeacherPermissions>) => {
-    setTeachers(prev => prev.map(t => {
-      if (t.id !== teacherId) return t;
-      const mergedPermissions: TeacherPermissions = {
-        ...(t.teacherPermissions || defaultTeacherPermissions),
-        ...newPermissions,
-      };
-      return {
-        ...t,
-        teacherPermissions: mergedPermissions,
-      };
-    }));
-
-    if (currentUser && currentUser.id === teacherId) {
-      setCurrentUser(prev => {
-        if (!prev) return null;
-        const currentTea = prev as TeacherProfile;
-        return {
-          ...currentTea,
-          teacherPermissions: {
-            ...(currentTea.teacherPermissions || defaultTeacherPermissions),
-            ...newPermissions,
-          },
-        };
-      });
-    }
+    const teacher = teachers.find(t => t.id === teacherId);
+    if (!teacher) return;
+    const mergedPermissions: TeacherPermissions = {
+      ...(teacher.teacherPermissions || defaultTeacherPermissions),
+      ...newPermissions,
+    };
+    updateTeacher(teacherId, { teacherPermissions: mergedPermissions });
   };
 
   const assignTeacherPrograms = (teacherId: string, programIds: string[]) => {
-    setTeachers(prev => prev.map(t => t.id === teacherId ? { ...t, assignedProgramIds: programIds } : t));
-    if (currentUser && currentUser.id === teacherId) {
-      setCurrentUser(prev => prev ? { ...prev, assignedProgramIds: programIds } as TeacherProfile : null);
-    }
+    updateTeacher(teacherId, { assignedProgramIds: programIds });
   };
 
   const regenerateUserCode = (userId: string): string => {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const newCode = `TEA-${randomSuffix}`;
-    setTeachers(prev => prev.map(t => t.id === userId ? { ...t, code: newCode } : t));
-    if (currentUser && currentUser.id === userId) {
-      setCurrentUser(prev => prev ? { ...prev, code: newCode } : null);
-    }
+    updateTeacher(userId, { code: newCode });
     return newCode;
   };
 
@@ -636,14 +802,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       code,
     };
     setPrograms(prev => [newProg, ...prev]);
+    saveCloudDoc(CLOUD_COLLECTIONS.PROGRAMS, id, newProg);
   };
 
   const updateProgram = (id: string, updates: Partial<Program>) => {
-    setPrograms(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+    setPrograms(prev => {
+      const updatedList = prev.map(p => {
+        if (p.id === id) {
+          const updated = { ...p, ...updates };
+          saveCloudDoc(CLOUD_COLLECTIONS.PROGRAMS, id, updated);
+          return updated;
+        }
+        return p;
+      });
+      return updatedList;
+    });
   };
 
   const deleteProgram = (id: string) => {
     setPrograms(prev => prev.filter(p => p.id !== id));
+    deleteCloudDoc(CLOUD_COLLECTIONS.PROGRAMS, id);
   };
 
   // Subscription CRUD
@@ -654,26 +832,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id,
     };
     setSubscriptions(prev => [newSub, ...prev]);
+    saveCloudDoc(CLOUD_COLLECTIONS.SUBSCRIPTIONS, id, newSub);
   };
 
   const updateSubscription = (id: string, updates: Partial<Subscription>) => {
-    setSubscriptions(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+    setSubscriptions(prev => {
+      const updatedList = prev.map(s => {
+        if (s.id === id) {
+          const updated = { ...s, ...updates };
+          saveCloudDoc(CLOUD_COLLECTIONS.SUBSCRIPTIONS, id, updated);
+          return updated;
+        }
+        return s;
+      });
+      return updatedList;
+    });
   };
 
   const extendSubscription = (id: string, additionalDays: number, additionalSessions: number) => {
-    setSubscriptions(prev => prev.map(s => {
-      if (s.id !== id) return s;
-      const currentEnd = new Date(s.endDate);
-      currentEnd.setDate(currentEnd.getDate() + additionalDays);
-      const newEndDate = currentEnd.toISOString().split('T')[0];
-      return {
-        ...s,
-        endDate: newEndDate,
-        totalSessions: s.totalSessions + additionalSessions,
-        remainingSessions: s.remainingSessions + additionalSessions,
-        status: 'ACTIVE',
-      };
-    }));
+    const current = subscriptions.find(s => s.id === id);
+    if (!current) return;
+    const currentEnd = new Date(current.endDate);
+    currentEnd.setDate(currentEnd.getDate() + additionalDays);
+    const newEndDate = currentEnd.toISOString().split('T')[0];
+    const updated = {
+      ...current,
+      endDate: newEndDate,
+      totalSessions: current.totalSessions + additionalSessions,
+      remainingSessions: current.remainingSessions + additionalSessions,
+      status: 'ACTIVE' as const,
+    };
+    updateSubscription(id, updated);
   };
 
   // Class CRUD
@@ -681,14 +870,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const id = `cls-${Date.now()}`;
     const newCls: ClassSession = { ...data, id };
     setClasses(prev => [newCls, ...prev]);
+    saveCloudDoc(CLOUD_COLLECTIONS.CLASSES, id, newCls);
   };
 
   const updateClassSession = (id: string, updates: Partial<ClassSession>) => {
-    setClasses(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    setClasses(prev => {
+      const updatedList = prev.map(c => {
+        if (c.id === id) {
+          const updated = { ...c, ...updates };
+          saveCloudDoc(CLOUD_COLLECTIONS.CLASSES, id, updated);
+          return updated;
+        }
+        return c;
+      });
+      return updatedList;
+    });
   };
 
   const deleteClassSession = (id: string) => {
     setClasses(prev => prev.filter(c => c.id !== id));
+    deleteCloudDoc(CLOUD_COLLECTIONS.CLASSES, id);
   };
 
   // Attendance
@@ -698,11 +899,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const existingIndex = attendance.findIndex(a => a.sessionId === record.sessionId && a.studentId === record.studentId);
     
     if (existingIndex >= 0) {
+      const existing = attendance[existingIndex];
+      const updatedRecord = { ...existing, status: record.status, notes: record.notes, markedAt: now };
       setAttendance(prev => {
         const copy = [...prev];
-        copy[existingIndex] = { ...copy[existingIndex], status: record.status, notes: record.notes, markedAt: now };
+        copy[existingIndex] = updatedRecord;
         return copy;
       });
+      saveCloudDoc(CLOUD_COLLECTIONS.ATTENDANCE, existing.id, updatedRecord);
     } else {
       const newRecord: AttendanceRecord = {
         ...record,
@@ -710,6 +914,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markedAt: now,
       };
       setAttendance(prev => [newRecord, ...prev]);
+      saveCloudDoc(CLOUD_COLLECTIONS.ATTENDANCE, id, newRecord);
     }
   };
 
@@ -727,15 +932,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       playCount: 0,
     };
     setActivities(prev => [newAct, ...prev]);
+    saveCloudDoc(CLOUD_COLLECTIONS.ACTIVITIES, id, newAct);
   };
 
   const updateActivity = (id: string, updates: Partial<Activity>) => {
     const today = new Date().toISOString().split('T')[0];
-    setActivities(prev => prev.map(a => a.id === id ? { ...a, ...updates, updatedAt: today } : a));
+    setActivities(prev => {
+      const updatedList = prev.map(a => {
+        if (a.id === id) {
+          const updated = { ...a, ...updates, updatedAt: today };
+          saveCloudDoc(CLOUD_COLLECTIONS.ACTIVITIES, id, updated);
+          return updated;
+        }
+        return a;
+      });
+      return updatedList;
+    });
   };
 
   const deleteActivity = (id: string) => {
     setActivities(prev => prev.filter(a => a.id !== id));
+    deleteCloudDoc(CLOUD_COLLECTIONS.ACTIVITIES, id);
   };
 
   // Lesson CRUD
@@ -751,20 +968,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedAt: today,
     };
     setLessons(prev => [newLsn, ...prev]);
+    saveCloudDoc(CLOUD_COLLECTIONS.LESSONS, id, newLsn);
   };
 
   const updateLesson = (id: string, updates: Partial<Lesson>) => {
     const today = new Date().toISOString().split('T')[0];
-    setLessons(prev => prev.map(l => l.id === id ? { ...l, ...updates, updatedAt: today } : l));
+    setLessons(prev => {
+      const updatedList = prev.map(l => {
+        if (l.id === id) {
+          const updated = { ...l, ...updates, updatedAt: today };
+          saveCloudDoc(CLOUD_COLLECTIONS.LESSONS, id, updated);
+          return updated;
+        }
+        return l;
+      });
+      return updatedList;
+    });
   };
 
   // Settings
   const updateSettings = (newSettings: Partial<PlatformSettings>) => {
-    setSettings(prev => ({ ...prev, ...newSettings }));
+    const updated = { ...settings, ...newSettings };
+    setSettings(updated);
+    saveCloudDoc(CLOUD_COLLECTIONS.SETTINGS, 'global_settings', updated);
   };
 
   const markNotificationAsRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    setNotifications(prev => {
+      const updated = prev.map(n => n.id === id ? { ...n, read: true } : n);
+      return updated;
+    });
+    const target = notifications.find(n => n.id === id);
+    if (target) {
+      saveCloudDoc(CLOUD_COLLECTIONS.NOTIFICATIONS, id, { ...target, read: true });
+    }
   };
 
   // Helper calculation for student stats
@@ -803,7 +1040,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
-  // Public enrollment & Self Registration
+  // Public enrollment & Self Registration with Instant Cloud Persistence
   const registerStudentAndEnroll = (data: {
     name: string;
     nameArabic?: string;
@@ -871,12 +1108,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       notes: `مسجل في ${targetProgram.nameArabic} - ${data.studyMode === 'PRIVATE' ? 'خاص (1-on-1)' : 'مجموعة'}`,
     };
 
-    // Update state
+    // Update local state
     setStudents(prev => [newStudent, ...prev]);
     setSubscriptions(prev => [newSubscription, ...prev]);
     setPrograms(prev => prev.map(p => p.id === targetProgram.id ? { ...p, enrolledStudentIds: [...p.enrolledStudentIds, newStudentId] } : p));
     if (targetTeacher) {
       setTeachers(prev => prev.map(t => t.id === targetTeacher.id ? { ...t, assignedStudentIds: [...t.assignedStudentIds, newStudentId] } : t));
+    }
+
+    // Instantly save to Cloud Firestore so the admin/teacher receives it in real-time
+    saveCloudDoc(CLOUD_COLLECTIONS.STUDENTS, newStudentId, newStudent);
+    saveCloudDoc(CLOUD_COLLECTIONS.SUBSCRIPTIONS, newSubId, newSubscription);
+    if (targetProgram) {
+      saveCloudDoc(CLOUD_COLLECTIONS.PROGRAMS, targetProgram.id, {
+        ...targetProgram,
+        enrolledStudentIds: [...targetProgram.enrolledStudentIds, newStudentId],
+      });
+    }
+    if (targetTeacher) {
+      saveCloudDoc(CLOUD_COLLECTIONS.TEACHERS, targetTeacher.id, {
+        ...targetTeacher,
+        assignedStudentIds: [...targetTeacher.assignedStudentIds, newStudentId],
+      });
     }
 
     const welcomeNotif: NotificationItem = {
@@ -891,6 +1144,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
     };
     setNotifications(prev => [welcomeNotif, ...prev]);
+    saveCloudDoc(CLOUD_COLLECTIONS.NOTIFICATIONS, welcomeNotif.id, welcomeNotif);
+
+    // Also send an instant alert notification to Admin
+    const adminAlertNotif: NotificationItem = {
+      id: `notif-adm-${Date.now()}`,
+      userId: adminProfile.id,
+      title: 'New Student Self-Enrolled! 🎓',
+      titleArabic: 'طالب جديد قام بالتسجيل الذاتي في المنصة! 🎓',
+      message: `New student ${data.name} (${newStudentCode}) has enrolled in ${targetProgram.name}.`,
+      messageArabic: `قام الطالب الجديد (${data.name}) بالكود [${newStudentCode}] بالتسجيل والاشتراك في برنامج (${targetProgram.nameArabic}).`,
+      type: 'SUBSCRIPTION',
+      read: false,
+      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
+    };
+    setNotifications(prev => [adminAlertNotif, ...prev]);
+    saveCloudDoc(CLOUD_COLLECTIONS.NOTIFICATIONS, adminAlertNotif.id, adminAlertNotif);
 
     return {
       student: newStudent,
@@ -918,6 +1187,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         lessons,
         notifications,
         settings,
+        isCloudSynced,
         loginWithCode,
         switchDemoUser,
         logout,
