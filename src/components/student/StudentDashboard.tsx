@@ -2,6 +2,7 @@ import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { useI18n } from '../../lib/i18n';
 import { StudentProfile } from '../../types';
+import { PlatformTimetableCalendar } from '../calendar/PlatformTimetableCalendar';
 import {
   Calendar,
   Clock,
@@ -335,7 +336,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onNavigateTa
         </div>
       </div>
 
-      {/* 4. Upcoming & Previous Classes List */}
+      {/* 4. Instructor Availability Timetable (Shows Free / Busy Slots) */}
+      {stats.primaryTeacher && (
+        <PlatformTimetableCalendar
+          teacher={stats.primaryTeacher}
+          readOnly={true}
+        />
+      )}
+
+      {/* 5. Upcoming & Previous Classes List */}
       <div className="bg-white rounded-3xl p-6 border border-[#29235D]/10 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

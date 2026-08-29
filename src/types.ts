@@ -6,16 +6,19 @@ export type StudyMode = 'PRIVATE' | 'GROUP';
 
 export type WeekDay = 'SUNDAY' | 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY';
 
+export type SlotStatus = 'AVAILABLE' | 'BUSY';
+
 export interface TeacherAvailabilitySlot {
   id: string;
   day: WeekDay;
   dayArabic?: string;
   startTime: string; // e.g. '17:00'
   endTime: string;   // e.g. '19:00'
-  timeZoneLabel?: string; // 'توقيت القاهرة (Cairo Time - CLT / GMT+2)'
+  title?: string;    // e.g. 'حلقة التجويد' / 'تأسيس اللغة العربية'
   studyType: 'PRIVATE' | 'GROUP' | 'BOTH';
   maxStudents?: number;
-  isAvailable: boolean;
+  isAvailable: boolean; // true = Available, false = Busy
+  status?: SlotStatus;  // 'AVAILABLE' | 'BUSY'
   notes?: string;
 }
 

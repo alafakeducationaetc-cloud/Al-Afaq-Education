@@ -273,11 +273,11 @@ ${slotText}
               </div>
             </div>
 
-            {/* Step 2: Instructor & Cairo Time Slot Selection */}
+            {/* Step 2: Instructor & Timetable Slot Selection */}
             <div>
               <label className="block text-xs font-bold text-[#29235D] uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <GraduationCap className="w-4 h-4 text-[#D3B673]" />
-                <span>{isRTL ? '٢. اختيار المدرب والموعد المعتمد (بتوقيت القاهرة)' : '2. Select Teacher & Cairo Timetable Slot'}</span>
+                <span>{isRTL ? '٢. اختيار المدرب وموعد الحصة الأسبوعي' : '2. Select Teacher & Timetable Slot'}</span>
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
@@ -291,18 +291,21 @@ ${slotText}
                     }}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-[#FBF9F4] text-xs sm:text-sm font-bold text-[#29235D] focus:border-[#29235D] focus:ring-1 focus:ring-[#29235D] outline-none"
                   >
-                    {eligibleTeachers.map(tea => (
-                      <option key={tea.id} value={tea.id}>
-                        {isRTL ? tea.nameArabic : tea.name} ({tea.specializationArabic || tea.specialization})
-                      </option>
-                    ))}
+                    {eligibleTeachers.length === 0 ? (
+                      <option value="">{isRTL ? 'سيتم تعيين المعلم فور تأكيد التسجيل' : 'Teacher assigned upon confirmation'}</option>
+                    ) : (
+                      eligibleTeachers.map(tea => (
+                        <option key={tea.id} value={tea.id}>
+                          {isRTL ? tea.nameArabic || tea.name : tea.name} ({tea.specializationArabic || tea.specialization})
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs text-gray-500 mb-1 flex items-center justify-between">
-                    <span>{isRTL ? 'الموعد المتاح (🇪🇬 توقيت القاهرة)' : 'Available Slot (🇪🇬 Cairo Time)'}</span>
-                    <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded">GMT+2</span>
+                    <span>{isRTL ? 'الموعد المتاح من جدول المعلم' : 'Available Timetable Slot'}</span>
                   </label>
                   <select
                     value={selectedSlotId}
@@ -310,32 +313,42 @@ ${slotText}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-[#FBF9F4] text-xs sm:text-sm font-bold text-[#29235D] focus:border-[#29235D] focus:ring-1 focus:ring-[#29235D] outline-none"
                   >
                     <option value="">{isRTL ? '-- اختر موعداً متاحاً أو تنسيق لاحق --' : '-- Choose slot or arrange later --'}</option>
-                    {teacherSlots.map(slot => (
-                      <option key={slot.id} value={slot.id}>
-                        {slot.dayArabic || slot.day} | {slot.startTime} - {slot.endTime} (القاهرة)
-                      </option>
-                    ))}
+                    {teacherSlots.map(slot => {
+                      const isBusy = slot.status === 'BUSY' || (slot.status === undefined && !slot.isAvailable);
+                      return (
+                        <option key={slot.id} value={isBusy ? '' : slot.id} disabled={isBusy}>
+                          {isBusy ? '🔒 [مشغول] ' : '🟢 [متاح] '}
+                          {slot.dayArabic || slot.day} | {slot.startTime} - {slot.endTime} {isBusy ? (isRTL ? '(غير متاح)' : '(Occupied)') : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>
 
               {teacherSlots.length > 0 && (
                 <div className="bg-[#F8F6F0] p-2.5 rounded-xl border border-[#29235D]/10 flex flex-wrap gap-2 items-center text-xs">
-                  <span className="text-gray-500 text-[11px] font-medium">{isRTL ? 'مواعيد المدرب المتاحة:' : 'Teacher Slots:'}</span>
-                  {teacherSlots.map(slot => (
-                    <button
-                      key={slot.id}
-                      type="button"
-                      onClick={() => setSelectedSlotId(slot.id)}
-                      className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
-                        selectedSlotId === slot.id
-                          ? 'bg-[#29235D] text-[#D3B673] border-[#29235D]'
-                          : 'bg-white text-gray-700 border-gray-200 hover:border-[#D3B673]'
-                      }`}
-                    >
-                      📅 {slot.dayArabic || slot.day} {slot.startTime} - {slot.endTime}
-                    </button>
-                  ))}
+                  <span className="text-gray-500 text-[11px] font-medium">{isRTL ? 'جدول فترات المدرب:' : 'Teacher Timetable:'}</span>
+                  {teacherSlots.map(slot => {
+                    const isBusy = slot.status === 'BUSY' || (slot.status === undefined && !slot.isAvailable);
+                    return (
+                      <button
+                        key={slot.id}
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => !isBusy && setSelectedSlotId(slot.id)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                          isBusy
+                            ? 'bg-rose-50 text-rose-700 border-rose-200 cursor-not-allowed opacity-80'
+                            : selectedSlotId === slot.id
+                            ? 'bg-[#29235D] text-[#D3B673] border-[#29235D] cursor-pointer shadow-2xs'
+                            : 'bg-white text-emerald-800 border-emerald-200 hover:border-[#D3B673] cursor-pointer'
+                        }`}
+                      >
+                        {isBusy ? `🔒 ${slot.dayArabic || slot.day} ${slot.startTime}-${slot.endTime} (مشغول)` : `🟢 ${slot.dayArabic || slot.day} ${slot.startTime}-${slot.endTime} (متاح)`}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>

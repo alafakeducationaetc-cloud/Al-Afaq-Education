@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { useI18n } from '../../lib/i18n';
 import { TeacherProfile, TeacherPermissions, Program, UserStatus } from '../../types';
 import { UserAvatarEditModal } from './UserAvatarEditModal';
+import { PlatformTimetableCalendar } from '../calendar/PlatformTimetableCalendar';
 import {
   ShieldCheck,
   Users,
@@ -164,6 +165,7 @@ export const TeacherPermissionManager: React.FC = () => {
   const [editingTeacher, setEditingTeacher] = useState<TeacherProfile | null>(null);
   const [selectedTeacherForPermissions, setSelectedTeacherForPermissions] = useState<TeacherProfile | null>(null);
   const [selectedTeacherForPrograms, setSelectedTeacherForPrograms] = useState<TeacherProfile | null>(null);
+  const [selectedTeacherForTimetable, setSelectedTeacherForTimetable] = useState<TeacherProfile | null>(null);
   const [teacherToDelete, setTeacherToDelete] = useState<TeacherProfile | null>(null);
   const [avatarModalUser, setAvatarModalUser] = useState<TeacherProfile | null>(null);
 
@@ -560,7 +562,15 @@ export const TeacherPermissionManager: React.FC = () => {
                     className="flex-1 py-2 px-3 rounded-xl bg-[#29235D] hover:bg-[#1E1945] text-[#D3B673] text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer"
                   >
                     <Sliders className="w-3.5 h-3.5" />
-                    <span>{isRTL ? 'تخصيص الصلاحيات' : 'Permissions'}</span>
+                    <span>{isRTL ? 'الصلاحيات' : 'Permissions'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedTeacherForTimetable(tea)}
+                    className="p-2 text-[#29235D] hover:bg-[#D3B673]/20 bg-[#F8F6F0] rounded-xl transition-all cursor-pointer border border-[#D3B673]/40"
+                    title={isRTL ? 'جدول المواعيد والحصص' : 'Weekly Timetable'}
+                  >
+                    <Calendar className="w-4 h-4 text-[#B89955]" />
                   </button>
 
                   <button
@@ -1225,6 +1235,48 @@ export const TeacherPermissionManager: React.FC = () => {
         isOpen={!!avatarModalUser}
         onClose={() => setAvatarModalUser(null)}
       />
+
+      {/* 10. MODAL: Teacher Timetable Management */}
+      {selectedTeacherForTimetable && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-4xl w-full p-6 space-y-4 shadow-2xl border border-[#29235D]/20 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <img
+                  src={selectedTeacherForTimetable.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100'}
+                  alt={selectedTeacherForTimetable.name}
+                  className="w-10 h-10 rounded-xl object-cover border border-[#D3B673]"
+                />
+                <div>
+                  <h3 className="text-base font-bold text-[#29235D] font-serif">
+                    {isRTL ? `جدول مواعيد المدرب: ${selectedTeacherForTimetable.nameArabic || selectedTeacherForTimetable.name}` : `Timetable: ${selectedTeacherForTimetable.name}`}
+                  </h3>
+                  <span className="text-xs text-gray-500 font-mono">{selectedTeacherForTimetable.code}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedTeacherForTimetable(null)}
+                className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            <PlatformTimetableCalendar
+              teacher={selectedTeacherForTimetable}
+            />
+
+            <div className="flex justify-end pt-3 border-t border-gray-100">
+              <button
+                onClick={() => setSelectedTeacherForTimetable(null)}
+                className="px-5 py-2 bg-[#29235D] text-[#D3B673] font-bold rounded-xl text-xs hover:bg-[#1D1845] cursor-pointer"
+              >
+                {isRTL ? 'إغلاق' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
