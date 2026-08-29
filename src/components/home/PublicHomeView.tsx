@@ -655,20 +655,6 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({ onOpenLogin }) =
 
       </main>
 
-      {/* Floating WhatsApp Quick Action Button */}
-      <a
-        href={getWhatsAppUrl()}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-2xl transition-all duration-300 hover:scale-105 group border-2 border-white"
-        title="Chat on WhatsApp"
-      >
-        <MessageCircle className="w-6 h-6 fill-white" />
-        <span className="text-xs font-bold hidden sm:inline">
-          {isRTL ? 'تواصل معنا عبر واتساب' : 'WhatsApp Support'}
-        </span>
-      </a>
-
       {/* Public Footer */}
       <footer className="bg-white border-t border-[#29235D]/10 py-10 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -683,14 +669,16 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({ onOpenLogin }) =
                 <Mail className="w-3.5 h-3.5 text-[#D3B673]" />
                 {settings.contactEmail}
               </span>
-              <span className="flex items-center gap-1">
-                <Phone className="w-3.5 h-3.5 text-[#D3B673]" />
-                {settings.contactPhone}
-              </span>
-              <span className="flex items-center gap-1 text-emerald-700">
+              <a
+                href={getWhatsAppUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-emerald-700 hover:text-emerald-800 transition-colors font-bold"
+              >
                 <MessageCircle className="w-3.5 h-3.5" />
-                {settings.whatsappNumber || '+201012345678'}
-              </span>
+                <span>{isRTL ? 'الدعم الفني عبر واتساب' : 'WhatsApp Support'}</span>
+                <ExternalLink className="w-3 h-3 ml-0.5 opacity-70" />
+              </a>
             </div>
 
             <div className="text-center md:text-right rtl:md:text-left text-xs text-[#786F9A]">

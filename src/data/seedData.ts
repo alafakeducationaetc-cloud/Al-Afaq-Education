@@ -28,8 +28,8 @@ export const initialSettings: PlatformSettings = {
   defaultZoomLink: 'https://zoom.us/j/9876543210',
   enableRTL: true,
   contactEmail: 'alafak.education.aetc@gmail.com',
-  contactPhone: '+20 101 234 5678',
-  whatsappNumber: '+201012345678',
+  contactPhone: '+20 101 199 2165',
+  whatsappNumber: '201011992165',
   whatsappCustomMessage: 'مرحباً، أود الاستفسار والتسجيل في برامج منصة الآفاق الدولية للتدريب واللغة العربية.',
   adminPasscode: 'admin123',
 };

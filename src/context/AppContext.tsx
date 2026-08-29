@@ -13,6 +13,8 @@ import {
   NotificationItem,
   PlatformSettings,
   AttendanceStatus,
+  StudyMode,
+  TeacherAvailabilitySlot,
 } from '../types';
 import {
   initialSettings,

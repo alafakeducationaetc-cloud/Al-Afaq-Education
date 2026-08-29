@@ -15,19 +15,12 @@ import { AttendanceView } from './components/classroom/AttendanceView';
 import { ProgramListView } from './components/programs/ProgramListView';
 import { LessonBuilderView } from './components/lessons/LessonBuilderView';
 import { ProfileView } from './components/profile/ProfileView';
+import { FloatingWhatsAppButton } from './components/common/FloatingWhatsAppButton';
 
 const MainAppLayout: React.FC = () => {
   const { currentUser } = useApp();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [showLoginScreen, setShowLoginScreen] = useState<boolean>(false);
-
-  // If visitor is not authenticated:
-  if (!currentUser) {
-    if (showLoginScreen) {
-      return <LoginView onBackToHome={() => setShowLoginScreen(false)} />;
-    }
-    return <PublicHomeView onOpenLogin={() => setShowLoginScreen(true)} />;
-  }
 
   const renderActiveTabContent = () => {
     switch (activeTab) {
@@ -35,10 +28,10 @@ const MainAppLayout: React.FC = () => {
         return <PublicHomeView onOpenLogin={() => setActiveTab('dashboard')} />;
 
       case 'dashboard':
-        if (currentUser.role === 'STUDENT') {
+        if (currentUser?.role === 'STUDENT') {
           return <StudentDashboard onNavigateTab={setActiveTab} />;
         }
-        if (currentUser.role === 'TEACHER') {
+        if (currentUser?.role === 'TEACHER') {
           return <TeacherDashboard onNavigateTab={setActiveTab} />;
         }
         return <AdminDashboard onNavigateTab={setActiveTab} />;
@@ -74,35 +67,48 @@ const MainAppLayout: React.FC = () => {
         return <ProfileView />;
 
       default:
-        if (currentUser.role === 'STUDENT') return <StudentDashboard onNavigateTab={setActiveTab} />;
-        if (currentUser.role === 'TEACHER') return <TeacherDashboard onNavigateTab={setActiveTab} />;
+        if (currentUser?.role === 'STUDENT') return <StudentDashboard onNavigateTab={setActiveTab} />;
+        if (currentUser?.role === 'TEACHER') return <TeacherDashboard onNavigateTab={setActiveTab} />;
         return <AdminDashboard onNavigateTab={setActiveTab} />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F6F0] text-[#29235D] flex flex-col font-sans selection:bg-[#D3B673]/30 selection:text-[#29235D]">
-      {/* Top Header Navigation */}
-      <Navbar onNavigateTab={setActiveTab} activeTab={activeTab} />
+    <>
+      {!currentUser ? (
+        showLoginScreen ? (
+          <LoginView onBackToHome={() => setShowLoginScreen(false)} />
+        ) : (
+          <PublicHomeView onOpenLogin={() => setShowLoginScreen(true)} />
+        )
+      ) : (
+        <div className="min-h-screen bg-[#F8F6F0] text-[#29235D] flex flex-col font-sans selection:bg-[#D3B673]/30 selection:text-[#29235D]">
+          {/* Top Header Navigation */}
+          <Navbar onNavigateTab={setActiveTab} activeTab={activeTab} />
 
-      {/* Main Workspace Body */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex gap-6">
-        {/* Role-Based Desktop Sidebar */}
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+          {/* Main Workspace Body */}
+          <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex gap-6">
+            {/* Role-Based Desktop Sidebar */}
+            <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 
-        {/* Dynamic Viewport Content */}
-        <section className="flex-1 min-w-0">
-          {renderActiveTabContent()}
-        </section>
-      </main>
+            {/* Dynamic Viewport Content */}
+            <section className="flex-1 min-w-0">
+              {renderActiveTabContent()}
+            </section>
+          </main>
 
-      {/* Footer Notice */}
-      <footer className="py-4 border-t border-[#29235D]/10 text-center text-xs text-[#786F9A]">
-        <p>
-          ALTEQ Platform © {new Date().getFullYear()} — Alafak International Training and Education Consultants. All rights reserved.
-        </p>
-      </footer>
-    </div>
+          {/* Footer Notice */}
+          <footer className="py-4 border-t border-[#29235D]/10 text-center text-xs text-[#786F9A]">
+            <p>
+              ALTEQ Platform © {new Date().getFullYear()} — Alafak International Training and Education Consultants. All rights reserved.
+            </p>
+          </footer>
+        </div>
+      )}
+
+      {/* Persistent 'Contact Support' Floating Action Button (WhatsApp direct chat) */}
+      <FloatingWhatsAppButton />
+    </>
   );
 };
 

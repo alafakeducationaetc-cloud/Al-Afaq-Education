@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useI18n } from '../../lib/i18n';
 import { TeacherProfile, AttendanceStatus } from '../../types';
+import { TeacherWeeklyAvailabilityCalendar } from './TeacherWeeklyAvailabilityCalendar';
 import {
   BookOpen,
   Users,
@@ -347,7 +348,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onNavigateTa
         </div>
       )}
 
-      {/* 4. Student Roster */}
+      {/* 4. Weekly Cairo Time Availability Calendar */}
+      <TeacherWeeklyAvailabilityCalendar teacher={teacher} />
+
+      {/* 5. Student Roster */}
       <div className="bg-white rounded-3xl p-6 border border-[#29235D]/10 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
