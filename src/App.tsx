@@ -15,6 +15,7 @@ import { AttendanceView } from './components/classroom/AttendanceView';
 import { ProgramListView } from './components/programs/ProgramListView';
 import { LessonBuilderView } from './components/lessons/LessonBuilderView';
 import { ProfileView } from './components/profile/ProfileView';
+import { MessagingView } from './components/chat/MessagingView';
 import { FloatingWhatsAppButton } from './components/common/FloatingWhatsAppButton';
 
 const MainAppLayout: React.FC = () => {
@@ -65,6 +66,10 @@ const MainAppLayout: React.FC = () => {
 
       case 'profile':
         return <ProfileView />;
+
+      case 'messages':
+      case 'chat':
+        return <MessagingView />;
 
       default:
         if (currentUser?.role === 'STUDENT') return <StudentDashboard onNavigateTab={setActiveTab} />;

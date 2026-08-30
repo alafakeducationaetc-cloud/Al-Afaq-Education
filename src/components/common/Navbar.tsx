@@ -22,6 +22,7 @@ import {
   Copy,
   Check,
   Share2,
+  MessageCircle,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -30,12 +31,13 @@ interface NavbarProps {
   activeTab?: string;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onNavigateTab }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onNavigateTab, activeTab }) => {
   const {
     currentUser,
     logout,
     notifications,
     markNotificationAsRead,
+    messages,
     themeMode,
     setThemeMode,
   } = useApp();
@@ -47,6 +49,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateTab }) => {
   const [copiedLink, setCopiedLink] = useState(false);
 
   const unreadNotifications = Array.isArray(notifications) ? notifications.filter(n => !n.read) : [];
+  
+  const unreadMessagesCount = currentUser
+    ? messages.filter(
+        m =>
+          m.senderId !== currentUser.id &&
+          (m.recipientId === currentUser.id || m.isGroup) &&
+          (!m.readBy || !m.readBy.includes(currentUser.id))
+      ).length
+    : 0;
 
   const handleCopyAppUrl = () => {
     try {
@@ -239,6 +250,24 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateTab }) => {
             >
               <Globe className="w-3.5 h-3.5 text-[#D3B673]" />
               <span>{language === 'en' ? 'العربية' : 'English'}</span>
+            </button>
+
+            {/* Messages Quick Access Button */}
+            <button
+              onClick={() => onNavigateTab?.('messages')}
+              className={`relative p-2 rounded-xl border transition-all cursor-pointer ${
+                activeTab === 'messages'
+                  ? 'bg-[#29235D] text-[#D3B673] border-[#D3B673]/50 shadow-xs'
+                  : 'bg-white night:bg-[#1D1845] border-[#29235D]/10 night:border-[#393168] hover:bg-[#F8F6F0] night:hover:bg-[#251F45] text-[#29235D] night:text-[#E8D5A3]'
+              }`}
+              title={isRTL ? 'الرسائل والمحادثات' : 'Messages & Chat'}
+            >
+              <MessageCircle className="w-4 h-4" />
+              {unreadMessagesCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center border-2 border-white night:border-[#131124]">
+                  {unreadMessagesCount}
+                </span>
+              )}
             </button>
 
             {/* Notifications Popover */}

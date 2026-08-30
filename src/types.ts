@@ -182,6 +182,54 @@ export interface ClassSession {
   lessonId?: string;
   notes?: string;
   isLockedDueToQuota?: boolean;
+  cancelledBy?: UserRole;
+  cancellationReason?: string;
+  cancelledAt?: string;
+  isEarlyCancelledWithoutDeduction?: boolean;
+  rescheduledFromDate?: string;
+  rescheduledFromTime?: string;
+  rescheduledAt?: string;
+  rescheduleReason?: string;
+}
+
+export type MessageAttachmentType = 'IMAGE' | 'FILE' | 'GAME_LINK';
+
+export interface MessageAttachment {
+  id: string;
+  type: MessageAttachmentType;
+  name: string;
+  url: string;
+  size?: string;
+  activityId?: string; // Reference to platform interactive electronic game
+}
+
+export interface ChatMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderRole: UserRole;
+  senderAvatar?: string;
+  recipientId?: string;     // For 1-on-1 private chat (Student <-> Teacher)
+  groupId?: string;         // For Group Circle (Class Session ID or Program ID)
+  groupTitle?: string;      // e.g. "حلقة تأسيس اللغة العربية"
+  content: string;
+  attachments?: MessageAttachment[];
+  timestamp: string;
+  readBy?: string[];
+  isGroup?: boolean;
+}
+
+export interface ChatThread {
+  id: string;
+  type: 'PRIVATE' | 'GROUP';
+  participantIds: string[];
+  title?: string;
+  titleArabic?: string;
+  classSessionId?: string;
+  programId?: string;
+  lastMessage?: ChatMessage;
+  unreadCount?: number;
+  updatedAt: string;
 }
 
 export interface AttendanceRecord {

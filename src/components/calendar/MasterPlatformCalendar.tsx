@@ -4,6 +4,8 @@ import { useI18n } from '../../lib/i18n';
 import { ClassSession, WeekDay, StudentProfile, TeacherProfile, SubscriptionStatus, ClassSessionStatus } from '../../types';
 import { ColorKeysGuide } from '../common/ColorKeysGuide';
 import { COLOR_KEYS_CONFIG, COLOR_KEYS_ORDER, getClassStatusConfig } from '../../lib/colorKeys';
+import { ClassActionModal } from '../classroom/ClassActionModal';
+import { ClassChatModal } from '../chat/ClassChatModal';
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -130,6 +132,8 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
   const [rechargeDaysCount, setRechargeDaysCount] = useState<number>(30);
   const [rechargeNotes, setRechargeNotes] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [selectedActionSession, setSelectedActionSession] = useState<ClassSession | null>(null);
+  const [activeChatConfig, setActiveChatConfig] = useState<{ targetId: string; isGroup: boolean } | null>(null);
 
   // New Class Form State (1-to-1 vs Group Support)
   const [newStudyMode, setNewStudyMode] = useState<'PRIVATE' | 'GROUP'>('PRIVATE');
@@ -1151,12 +1155,8 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
                               ? 'bg-amber-50 night:bg-amber-950/40 border-amber-300'
                               : 'bg-[#FBF9F4] night:bg-[#231E44] border-gray-100 night:border-gray-700'
                           }`}
-                          onClick={() => {
-                            if (cls.zoomUrl) {
-                              window.open(cls.zoomUrl, '_blank', 'noopener,noreferrer');
-                            }
-                          }}
-                          title={isRTL ? `${cls.titleArabic || cls.title} - ${cls.startTime}` : `${cls.title} - ${cls.startTime}`}
+                          onClick={() => setSelectedActionSession(cls)}
+                          title={isRTL ? `خيارات وإدارة الحصة: ${cls.titleArabic || cls.title}` : `Manage Session: ${cls.title}`}
                         >
                           <div className="flex items-center justify-between gap-1 font-bold text-[#29235D] night:text-white">
                             <span className="truncate">{cls.titleArabic || cls.title}</span>
@@ -1342,31 +1342,40 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
                             )}
 
                             {/* Quick Action Buttons */}
-                            <div className="mt-2.5 pt-2 border-t border-gray-200/60 night:border-gray-700/60 flex items-center justify-between gap-1">
-                              {/* Zoom Link Button */}
-                              {isDepleted && isStudent ? (
-                                <span
-                                  className="text-[10px] font-bold text-gray-400 flex items-center gap-1"
-                                  title={isRTL ? 'يرجى شحن الرصيد لفتح رابط الزووم' : 'Please recharge to unlock Zoom'}
-                                >
-                                  <Lock className="w-3 h-3 text-gray-400" />
-                                  <span>{isRTL ? 'مقفول' : 'Locked'}</span>
-                                </span>
-                              ) : (
-                                <a
-                                  href={cls.zoomUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="px-2 py-1 rounded-lg bg-[#29235D] text-[#D3B673] hover:bg-[#1D1845] text-[10px] font-bold flex items-center gap-1 transition-all"
-                                >
-                                  <Video className="w-3 h-3" />
-                                  <span>Zoom</span>
-                                </a>
-                              )}
+                            <div className="mt-2.5 pt-2 border-t border-gray-200/60 night:border-gray-700/60 flex items-center justify-between gap-1 flex-wrap">
+                              {/* Session Action Options Button */}
+                              <button
+                                type="button"
+                                onClick={() => setSelectedActionSession(cls)}
+                                className="px-2 py-1 rounded-lg bg-[#29235D] text-[#D3B673] hover:bg-[#1D1845] text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                                title={isRTL ? 'خيارات الحصة (إلغاء، تأجيل، حذف، محادثة)' : 'Session Options (Cancel, Reschedule, Delete, Chat)'}
+                              >
+                                <span>⚙️</span>
+                                <span>{isRTL ? 'خيارات الحصة' : 'Options'}</span>
+                              </button>
+
+                              {/* Direct Chat Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (cls.studentIds.length > 1) {
+                                    setActiveChatConfig({ targetId: cls.id, isGroup: true });
+                                  } else {
+                                    const otherId = isStudent ? cls.teacherId : cls.studentIds[0];
+                                    setActiveChatConfig({ targetId: otherId, isGroup: false });
+                                  }
+                                }}
+                                className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-900 night:bg-purple-950/40 night:text-purple-300 text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                                title={isRTL ? 'فتح المحادثة والرسائل' : 'Open Chat'}
+                              >
+                                <MessageCircle className="w-3 h-3" />
+                                <span>{isRTL ? 'محادثة' : 'Chat'}</span>
+                              </button>
 
                               {/* Attendance toggle (for teacher / admin) */}
                               {!isStudent && student && (
                                 <button
+                                  type="button"
                                   onClick={() => handleToggleAttendance(cls, student.id)}
                                   className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center gap-1 border border-emerald-200 transition-all cursor-pointer"
                                   title={isRTL ? 'تسجيل الحضور وخصم حصة' : 'Mark Attendance & Deduct 1 Session'}
@@ -1523,6 +1532,32 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedActionSession(cls)}
+                        className="px-3.5 py-2 rounded-xl bg-[#29235D] hover:bg-[#1D1845] text-[#D3B673] font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                        title={isRTL ? 'خيارات الحصة (إلغاء، تأجيل، حذف، محادثة)' : 'Session Options'}
+                      >
+                        <span>⚙️</span>
+                        <span>{isRTL ? 'خيارات وإدارة الحصة' : 'Session Options'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (cls.studentIds.length > 1) {
+                            setActiveChatConfig({ targetId: cls.id, isGroup: true });
+                          } else {
+                            const otherId = isStudent ? cls.teacherId : cls.studentIds[0];
+                            setActiveChatConfig({ targetId: otherId, isGroup: false });
+                          }
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 night:bg-purple-950/40 night:text-purple-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span>{isRTL ? 'محادثة' : 'Chat'}</span>
+                      </button>
+
                       {canRecharge && student && (
                         <button
                           onClick={(e) => handleOpenRecharge(student.id, e)}
@@ -1653,7 +1688,33 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedActionSession(cls)}
+                      className="px-3 py-2 rounded-xl bg-[#29235D] hover:bg-[#1D1845] text-[#D3B673] font-bold text-xs flex items-center gap-1 shadow-xs cursor-pointer"
+                      title={isRTL ? 'خيارات وإدارة الحصة' : 'Session Options'}
+                    >
+                      <span>⚙️</span>
+                      <span>{isRTL ? 'خيارات الحصة' : 'Options'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (cls.studentIds.length > 1) {
+                          setActiveChatConfig({ targetId: cls.id, isGroup: true });
+                        } else {
+                          const otherId = isStudent ? cls.teacherId : cls.studentIds[0];
+                          setActiveChatConfig({ targetId: otherId, isGroup: false });
+                        }
+                      }}
+                      className="px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 night:bg-purple-950/40 night:text-purple-300 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span>{isRTL ? 'محادثة' : 'Chat'}</span>
+                    </button>
+
                     {canRecharge && student && (
                       <button
                         onClick={(e) => handleOpenRecharge(student.id, e)}
@@ -2501,6 +2562,27 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Class Action Modal (Cancel, Reschedule, Admin-only Delete, Zoom, Chat) */}
+      {selectedActionSession && (
+        <ClassActionModal
+          session={selectedActionSession}
+          onClose={() => setSelectedActionSession(null)}
+          onOpenChat={(targetId, isGroup) => {
+            setSelectedActionSession(null);
+            setActiveChatConfig({ targetId, isGroup });
+          }}
+        />
+      )}
+
+      {/* Class Interactive Chat Modal */}
+      {activeChatConfig && (
+        <ClassChatModal
+          initialThreadId={activeChatConfig.targetId}
+          initialIsGroup={activeChatConfig.isGroup}
+          onClose={() => setActiveChatConfig(null)}
+        />
       )}
 
     </div>

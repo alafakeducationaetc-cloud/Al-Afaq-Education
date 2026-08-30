@@ -17,6 +17,8 @@ import {
   StudyMode,
   ThemeMode,
   TeacherAvailabilitySlot,
+  ChatMessage,
+  UserRole,
 } from '../types';
 import {
   initialSettings,
@@ -30,6 +32,7 @@ import {
   initialActivities,
   initialLessons,
   initialNotifications,
+  initialMessages,
 } from '../data/seedData';
 import {
   saveCloudDoc,
@@ -119,6 +122,27 @@ interface AppContextType {
   addClassSessionsBatch: (sessions: Omit<ClassSession, 'id'>[]) => void;
   updateClassSession: (id: string, updates: Partial<ClassSession>) => void;
   deleteClassSession: (id: string) => void;
+  cancelClassSession: (
+    sessionId: string,
+    reason: string,
+    cancelledByRole: UserRole,
+    targetStudentId?: string,
+    adminWaiveDeduction?: boolean
+  ) => { isEarly: boolean; message: string; hoursDiff: number };
+  rescheduleClassSession: (
+    sessionId: string,
+    newDate: string,
+    newStartTime: string,
+    newEndTime: string,
+    reason?: string,
+    targetStudentId?: string
+  ) => void;
+
+  // Messaging & Class Circles Chat (with covert admin supervision)
+  messages: ChatMessage[];
+  sendMessage: (msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
+  markMessagesAsRead: (partnerOrGroupId: string) => void;
+  deleteMessage: (messageId: string) => void;
   
   // Attendance operations
   markAttendance: (record: Omit<AttendanceRecord, 'id' | 'markedAt'>) => void;
@@ -195,6 +219,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activities, setActivities] = useState<Activity[]>(() => loadStored('activities', initialActivities));
   const [lessons, setLessons] = useState<Lesson[]>(() => loadStored('lessons', initialLessons));
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => loadStored('notifications', initialNotifications));
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadStored('messages', initialMessages));
   const [isCloudSynced, setIsCloudSynced] = useState<boolean>(true);
   
   // Theme Mode (Night Reading Mode / Sepia / Light)
@@ -261,6 +286,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { localStorage.setItem('alteq_activities', JSON.stringify(activities)); }, [activities]);
   useEffect(() => { localStorage.setItem('alteq_lessons', JSON.stringify(lessons)); }, [lessons]);
   useEffect(() => { localStorage.setItem('alteq_notifications', JSON.stringify(notifications)); }, [notifications]);
+  useEffect(() => { localStorage.setItem('alteq_messages', JSON.stringify(messages)); }, [messages]);
   useEffect(() => { 
     if (currentUser) {
       localStorage.setItem('alteq_current_user_id', currentUser.id);
@@ -364,6 +390,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     );
 
+    // 10. Subscribe to Messages (Live Student-Teacher & Group Circles Chat)
+    const unsubMessages = subscribeToCloudCollection<ChatMessage>(
+      CLOUD_COLLECTIONS.MESSAGES,
+      cloudMsgs => {
+        if (cloudMsgs && cloudMsgs.length > 0) {
+          setMessages(cloudMsgs);
+        }
+      }
+    );
+
     // 10. Subscribe to Platform Settings Doc
     const unsubSettings = subscribeToCloudDoc<PlatformSettings>(
       CLOUD_COLLECTIONS.SETTINGS,
@@ -396,6 +432,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubActivities();
       unsubLessons();
       unsubNotifications();
+      unsubMessages();
       unsubSettings();
       unsubAdmin();
     };
@@ -1067,6 +1104,199 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     deleteCloudDoc(CLOUD_COLLECTIONS.CLASSES, id);
   };
 
+  // Smart Class Cancellation with strict 2-hour student rule and teacher reschedule prompt
+  const cancelClassSession = (
+    sessionId: string,
+    reason: string,
+    cancelledByRole: UserRole,
+    targetStudentId?: string,
+    adminWaiveDeduction?: boolean
+  ): { isEarly: boolean; message: string; hoursDiff: number } => {
+    const cls = classes.find(c => c.id === sessionId);
+    if (!cls) {
+      return { isEarly: false, message: 'الحصة غير موجودة', hoursDiff: 0 };
+    }
+
+    // Calculate hours remaining until class start
+    let hoursDiff = 999;
+    try {
+      const classStartDateTime = new Date(`${cls.date}T${cls.startTime}:00`);
+      const now = new Date();
+      const diffMs = classStartDateTime.getTime() - now.getTime();
+      hoursDiff = diffMs / (1000 * 60 * 60);
+    } catch {
+      hoursDiff = 999;
+    }
+
+    const isEarly = hoursDiff >= 2;
+    const isStudent = cancelledByRole === 'STUDENT';
+    const isTeacher = cancelledByRole === 'TEACHER';
+    const isAdmin = cancelledByRole === 'SUPER_ADMIN' || cancelledByRole === 'ADMIN';
+
+    let isNoDeduction = true;
+    let message = '';
+
+    if (isStudent) {
+      if (isEarly) {
+        isNoDeduction = true;
+        message = 'تم إلغاء الحصة مبكراً (قبل أكثر من ساعتين) — لن يتم خصم أي حصة من رصيدك التعليمي.';
+      } else {
+        isNoDeduction = false;
+        message = 'تنبيه: الإلغاء متأخر (أقل من ساعتين قبل موعد الحصة) — تم تسجيل الإلغاء واحتساب الحصة وإشعار الإدارة.';
+      }
+    } else if (isTeacher) {
+      isNoDeduction = true;
+      message = 'تم تسجيل إلغاء الحصة من المعلم. يمكنك الآن إعادة جدولة الدرس لموعد بديل مناسب.';
+    } else {
+      isNoDeduction = adminWaiveDeduction !== false;
+      message = isNoDeduction ? 'تم إلغاء الحصة بقرار إداري (بدون خصم من رصيد الطالب).' : 'تم إلغاء الحصة مع احتسابها.';
+    }
+
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+
+    // If individual cancellation in a group class
+    if (targetStudentId && cls.studentIds.length > 1) {
+      const remainingStudentIds = cls.studentIds.filter(sId => sId !== targetStudentId);
+      updateClassSession(sessionId, {
+        studentIds: remainingStudentIds,
+        notes: `${cls.notes ? cls.notes + ' | ' : ''}إلغاء الطالب (${targetStudentId}): ${reason} [${nowStr}]`,
+      });
+    } else {
+      // Entire class cancellation
+      updateClassSession(sessionId, {
+        status: 'CANCELLED',
+        cancelledBy: cancelledByRole,
+        cancellationReason: reason,
+        cancelledAt: nowStr,
+        isEarlyCancelledWithoutDeduction: isNoDeduction,
+        notes: `${cls.notes ? cls.notes + ' | ' : ''}ملغاة بواسطة (${cancelledByRole}) - السبب: ${reason} [${nowStr}]`,
+      });
+    }
+
+    return { isEarly, message, hoursDiff };
+  };
+
+  // Class Reschedule (Individual Student or Entire Circle/Group)
+  const rescheduleClassSession = (
+    sessionId: string,
+    newDate: string,
+    newStartTime: string,
+    newEndTime: string,
+    reason?: string,
+    targetStudentId?: string
+  ) => {
+    const cls = classes.find(c => c.id === sessionId);
+    if (!cls) return;
+
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+
+    // If individual reschedule in a group class
+    if (targetStudentId && cls.studentIds.length > 1) {
+      const remainingStudentIds = cls.studentIds.filter(sId => sId !== targetStudentId);
+      updateClassSession(sessionId, {
+        studentIds: remainingStudentIds,
+        notes: `${cls.notes ? cls.notes + ' | ' : ''}تم تأجيل موعد الطالب إلى ${newDate} ${newStartTime}`,
+      });
+
+      addClassSession({
+        programId: cls.programId,
+        teacherId: cls.teacherId,
+        studentIds: [targetStudentId],
+        studyMode: 'PRIVATE',
+        title: `${cls.title} (تأجيل فردي)`,
+        titleArabic: `${cls.titleArabic || cls.title} (تأجيل فردي)`,
+        topic: cls.topic,
+        lessonId: cls.lessonId,
+        date: newDate,
+        startTime: newStartTime,
+        endTime: newEndTime,
+        zoomUrl: cls.zoomUrl,
+        zoomMeetingId: cls.zoomMeetingId,
+        zoomPassword: cls.zoomPassword,
+        status: 'SCHEDULED',
+        rescheduledFromDate: cls.date,
+        rescheduledFromTime: cls.startTime,
+        rescheduledAt: nowStr,
+        rescheduleReason: reason,
+        notes: `معادة جدولتها من تاريخ ${cls.date} ${cls.startTime} - السبب: ${reason || 'تأجيل بناءً على الطلب'}`,
+      });
+    } else {
+      // Reschedule entire session
+      updateClassSession(sessionId, {
+        date: newDate,
+        startTime: newStartTime,
+        endTime: newEndTime,
+        status: 'SCHEDULED',
+        rescheduledFromDate: cls.date,
+        rescheduledFromTime: cls.startTime,
+        rescheduledAt: nowStr,
+        rescheduleReason: reason,
+        notes: `${cls.notes ? cls.notes + ' | ' : ''}أعيدت جدولتها من ${cls.date} ${cls.startTime} إلى ${newDate} ${newStartTime} - السبب: ${reason || 'تأجيل'} [${nowStr}]`,
+      });
+    }
+  };
+
+  // Messaging Operations (Private Chat & Group Circles with Covert Admin Oversight)
+  const sendMessage = (data: Omit<ChatMessage, 'id' | 'timestamp'>) => {
+    const id = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const now = new Date();
+    const datePart = now.toISOString().split('T')[0];
+    const timePart = now.toTimeString().substring(0, 5);
+    const timestamp = `${datePart} ${timePart}`;
+
+    const newMsg: ChatMessage = {
+      ...data,
+      id,
+      timestamp,
+      readBy: [data.senderId],
+    };
+
+    setMessages(prev => [...prev, newMsg]);
+    saveCloudDoc(CLOUD_COLLECTIONS.MESSAGES, id, newMsg);
+
+    // If recipient is a student or teacher, trigger an in-app notification
+    const recipientId = data.recipientId;
+    if (recipientId) {
+      const notifId = `notif-msg-${Date.now()}`;
+      const newNotif: NotificationItem = {
+        id: notifId,
+        userId: recipientId,
+        title: `رسالة جديدة من ${data.senderName}`,
+        message: data.content.substring(0, 80) + (data.content.length > 80 ? '...' : ''),
+        type: 'SYSTEM',
+        read: false,
+        createdAt: timestamp,
+      };
+      setNotifications(prev => [newNotif, ...prev]);
+      saveCloudDoc(CLOUD_COLLECTIONS.NOTIFICATIONS, notifId, newNotif);
+    }
+  };
+
+  const markMessagesAsRead = (partnerOrGroupId: string) => {
+    if (!currentUser) return;
+    setMessages(prev =>
+      prev.map(msg => {
+        const isTarget =
+          msg.groupId === partnerOrGroupId ||
+          (msg.senderId === partnerOrGroupId && msg.recipientId === currentUser.id);
+        if (isTarget && msg.readBy && !msg.readBy.includes(currentUser.id)) {
+          const updated = {
+            ...msg,
+            readBy: [...msg.readBy, currentUser.id],
+          };
+          saveCloudDoc(CLOUD_COLLECTIONS.MESSAGES, msg.id, updated);
+          return updated;
+        }
+        return msg;
+      })
+    );
+  };
+
+  const deleteMessage = (messageId: string) => {
+    setMessages(prev => prev.filter(m => m.id !== messageId));
+    deleteCloudDoc(CLOUD_COLLECTIONS.MESSAGES, messageId);
+  };
+
   // Attendance (with automatic session quota decrement & auto-lock upon expiration)
   const markAttendance = (record: Omit<AttendanceRecord, 'id' | 'markedAt'>) => {
     const id = `att-${Date.now()}`;
@@ -1397,6 +1627,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activities,
         lessons,
         notifications,
+        messages,
         settings,
         isCloudSynced,
         themeMode,
@@ -1432,6 +1663,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addClassSessionsBatch,
         updateClassSession,
         deleteClassSession,
+        cancelClassSession,
+        rescheduleClassSession,
+        sendMessage,
+        markMessagesAsRead,
+        deleteMessage,
         markAttendance,
         addActivity,
         updateActivity,

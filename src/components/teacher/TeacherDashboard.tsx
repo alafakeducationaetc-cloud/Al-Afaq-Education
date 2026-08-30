@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Lock,
   Check,
+  MessageCircle,
 } from 'lucide-react';
 
 interface TeacherDashboardProps {
@@ -111,6 +112,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onNavigateTa
 
           {/* Quick Teaching Actions with Granular Permission Guards */}
           <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={() => onNavigateTab('messages')}
+              className="px-4 py-2.5 rounded-2xl bg-white/15 hover:bg-white/25 text-[#E8D5A3] font-bold text-xs sm:text-sm flex items-center gap-2 border border-[#D3B673]/40 transition-all cursor-pointer shadow-xs"
+            >
+              <MessageCircle className="w-4 h-4 text-[#D3B673]" />
+              <span>{isRTL ? 'الرسائل والحلقات' : 'Messages & Circles'}</span>
+            </button>
+
             {perms.canAccessWhiteboard ? (
               <button
                 onClick={() => onNavigateTab('whiteboard')}

@@ -10,6 +10,7 @@ import {
   Lesson,
   NotificationItem,
   PlatformSettings,
+  ChatMessage,
 } from '../types';
 
 export const initialSettings: PlatformSettings = {
@@ -928,3 +929,75 @@ export const initialLessons: Lesson[] = [
 ];
 
 export const initialNotifications: NotificationItem[] = [];
+
+export const initialMessages: ChatMessage[] = [
+  {
+    id: 'msg-001',
+    senderId: 'usr-tea-1',
+    senderName: 'الشيخ أحمد المنصور',
+    senderRole: 'TEACHER',
+    senderAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+    recipientId: 'usr-std-1',
+    content: 'السلام عليكم ورحمة الله وبركاته، مرحباً بك يا طارق في حلقة القرآن والتجويد. لقد أرفقت لك ملف تدريبات أحكام النون الساكنة ورابط اللعبة الإلكترونية للتدرب قبل الحصة القادمة.',
+    timestamp: '2026-08-28 16:30',
+    readBy: ['usr-tea-1', 'usr-std-1'],
+    attachments: [
+      {
+        id: 'att-1',
+        type: 'FILE',
+        name: 'ورقة_عمل_أحكام_النون_الساكنة_والتنوين.pdf',
+        url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+        size: '1.4 MB',
+      },
+      {
+        id: 'att-2',
+        type: 'GAME_LINK',
+        name: 'لعبة أحكام التجويد: تصنيف أحكام النون الساكنة والتنوين',
+        url: '#',
+        activityId: 'act-002',
+      },
+    ],
+  },
+  {
+    id: 'msg-002',
+    senderId: 'usr-std-1',
+    senderName: 'طارق عبد الله الزهراني',
+    senderRole: 'STUDENT',
+    senderAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+    recipientId: 'usr-tea-1',
+    content: 'وعليكم السلام ورحمة الله وبركاته فضيلة الشيخ، شكراً جزيلاً! لقد لعبت اللعبة الإلكترونية وأكملت ورقة العمل وهذه صورة حلي للتدريب.',
+    timestamp: '2026-08-28 17:45',
+    readBy: ['usr-std-1', 'usr-tea-1'],
+    attachments: [
+      {
+        id: 'att-3',
+        type: 'IMAGE',
+        name: 'حل_تدريب_التجويد.jpg',
+        url: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=600&auto=format&fit=crop&q=80',
+        size: '850 KB',
+      },
+    ],
+  },
+  {
+    id: 'msg-003',
+    senderId: 'usr-tea-2',
+    senderName: 'أستاذ بلال حسن',
+    senderRole: 'TEACHER',
+    senderAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
+    groupId: 'grp-arb-foundation',
+    groupTitle: 'حلقة تأسيس اللغة العربية التفاعلية (المجموعة A)',
+    isGroup: true,
+    content: 'مرحباً بجميع طلاب الحلقة الكرام 🌟 نذكركم بموعد جلستنا التفاعلية ونرفق لكم لعبة مطابقة الحركات بالصوت للتدريب.',
+    timestamp: '2026-08-29 11:00',
+    readBy: ['usr-tea-2'],
+    attachments: [
+      {
+        id: 'att-4',
+        type: 'GAME_LINK',
+        name: 'لعبة مطابقة الحروف بالحركات (فتحة، ضمة، كسرة، سكون)',
+        url: '#',
+        activityId: 'act-001',
+      },
+    ],
+  },
+];
