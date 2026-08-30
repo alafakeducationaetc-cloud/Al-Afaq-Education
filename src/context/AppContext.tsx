@@ -15,6 +15,7 @@ import {
   PlatformSettings,
   AttendanceStatus,
   StudyMode,
+  ThemeMode,
   TeacherAvailabilitySlot,
 } from '../types';
 import {
@@ -64,6 +65,9 @@ interface AppContextType {
   notifications: NotificationItem[];
   settings: PlatformSettings;
   isCloudSynced: boolean;
+  themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => void;
+  toggleThemeMode: () => void;
   
   // Auth & Permissions
   loginWithCode: (code: string, nameOrPass?: string, requiredRole?: 'STUDENT' | 'TEACHER' | 'ADMIN') => { success: boolean; message?: string };
@@ -112,6 +116,7 @@ interface AppContextType {
   
   // Class / Schedule operations
   addClassSession: (cls: Omit<ClassSession, 'id'>) => void;
+  addClassSessionsBatch: (sessions: Omit<ClassSession, 'id'>[]) => void;
   updateClassSession: (id: string, updates: Partial<ClassSession>) => void;
   deleteClassSession: (id: string) => void;
   
@@ -192,6 +197,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => loadStored('notifications', initialNotifications));
   const [isCloudSynced, setIsCloudSynced] = useState<boolean>(true);
   
+  // Theme Mode (Night Reading Mode / Sepia / Light)
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
+    const saved = localStorage.getItem('alteq_theme_mode');
+    return (saved as ThemeMode) || 'light';
+  });
+
+  const setThemeMode = (mode: ThemeMode) => {
+    setThemeModeState(mode);
+    localStorage.setItem('alteq_theme_mode', mode);
+  };
+
+  const toggleThemeMode = () => {
+    setThemeModeState(prev => {
+      const next = prev === 'light' ? 'night' : prev === 'night' ? 'sepia' : 'light';
+      localStorage.setItem('alteq_theme_mode', next);
+      return next;
+    });
+  };
+
+  // Sync theme mode to DOM classes
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove('night-mode', 'dark', 'sepia-mode');
+    if (themeMode === 'night') {
+      root.classList.add('night-mode', 'dark');
+      root.setAttribute('data-theme', 'night');
+    } else if (themeMode === 'sepia') {
+      root.classList.add('sepia-mode');
+      root.setAttribute('data-theme', 'sepia');
+    } else {
+      root.setAttribute('data-theme', 'light');
+    }
+  }, [themeMode]);
+
   // Current user state (defaults to null so the public Home page is loaded when visiting)
   const [currentUser, setCurrentUser] = useState<User | StudentProfile | TeacherProfile | null>(() => {
     const savedId = localStorage.getItem('alteq_current_user_id');
@@ -987,6 +1026,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveCloudDoc(CLOUD_COLLECTIONS.CLASSES, id, newCls);
   };
 
+  const addClassSessionsBatch = (sessions: Omit<ClassSession, 'id'>[]) => {
+    if (sessions.length === 0) return;
+    const now = Date.now();
+    const newSessions: ClassSession[] = sessions.map((data, idx) => {
+      const id = `cls-${now}-${idx}-${Math.random().toString(36).substr(2, 5)}`;
+      const hasAnyEligibleStudent = data.studentIds.some(sId => {
+        const quota = getStudentQuota(sId);
+        return quota.isEligible;
+      });
+      return {
+        ...data,
+        id,
+        isLockedDueToQuota: !hasAnyEligibleStudent,
+      };
+    });
+
+    setClasses(prev => [...newSessions, ...prev]);
+    newSessions.forEach(cls => {
+      saveCloudDoc(CLOUD_COLLECTIONS.CLASSES, cls.id, cls);
+    });
+  };
+
   const updateClassSession = (id: string, updates: Partial<ClassSession>) => {
     setClasses(prev => {
       const updatedList = prev.map(c => {
@@ -1338,6 +1399,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notifications,
         settings,
         isCloudSynced,
+        themeMode,
+        setThemeMode,
+        toggleThemeMode,
         loginWithCode,
         switchDemoUser,
         logout,
@@ -1365,6 +1429,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         rechargeStudentSessions,
         getStudentQuota,
         addClassSession,
+        addClassSessionsBatch,
         updateClassSession,
         deleteClassSession,
         markAttendance,

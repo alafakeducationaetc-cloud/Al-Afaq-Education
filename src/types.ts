@@ -151,6 +151,18 @@ export interface Subscription {
   notes?: string;
 }
 
+export type ThemeMode = 'light' | 'night' | 'sepia';
+
+export type ClassSessionStatus =
+  | 'SCHEDULED'   // Coming Classes (قادمة / مجدولة)
+  | 'LIVE'        // Running (جارية الآن / مباشر)
+  | 'COMPLETED'   // Completed (مكتملة / تم الحضور)
+  | 'MISSED'      // Missed (فائتة)
+  | 'TRIAL'       // Trial (تجريبية)
+  | 'RESCHEDULED' // Rescheduled (مؤجلة / معاد جدولتها)
+  | 'CANCELLED'   // Canceled (ملغاة)
+  | 'ABSENT';     // Absent (غياب)
+
 export interface ClassSession {
   id: string;
   title: string;
@@ -158,13 +170,14 @@ export interface ClassSession {
   programId: string;
   teacherId: string;
   studentIds: string[];
+  studyMode?: StudyMode;
   date: string; // YYYY-MM-DD
   startTime: string; // HH:MM (24h)
   endTime: string; // HH:MM (24h)
   zoomUrl: string;
   zoomMeetingId?: string;
   zoomPassword?: string;
-  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+  status: ClassSessionStatus;
   topic?: string;
   lessonId?: string;
   notes?: string;
@@ -173,10 +186,10 @@ export interface ClassSession {
 
 export interface AttendanceRecord {
   id: string;
-  sessionId: string;
+  sessionId?: string;
   studentId: string;
   teacherId: string;
-  programId: string;
+  programId?: string;
   date: string;
   status: AttendanceStatus;
   markedAt: string;

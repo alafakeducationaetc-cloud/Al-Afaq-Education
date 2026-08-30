@@ -14,11 +14,134 @@
 
   body {
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   [dir="rtl"] body, [dir="rtl"] {
     font-family: 'Cairo', 'Plus Jakarta Sans', sans-serif;
   }
+}
+
+/* ========================================================= */
+/* NIGHT READING MODE (وضع القراءة الليلية) */
+/* ========================================================= */
+html.night-mode,
+html.dark {
+  color-scheme: dark;
+  background-color: #0E0D1B;
+  color: #EDE9F6;
+}
+
+html.night-mode body,
+html.dark body {
+  background-color: #0E0D1B !important;
+  color: #EDE9F6 !important;
+}
+
+/* Night surface & card overrides */
+html.night-mode .bg-white,
+html.dark .bg-white {
+  background-color: #18152E !important;
+  color: #EDE9F6;
+  border-color: #2E2754 !important;
+}
+
+html.night-mode .bg-\[\#F8F6F0\],
+html.dark .bg-\[\#F8F6F0\],
+html.night-mode .bg-\[\#FBF9F4\],
+html.dark .bg-\[\#FBF9F4\],
+html.night-mode .bg-\[\#FBF9F5\],
+html.dark .bg-\[\#FBF9F5\] {
+  background-color: #131124 !important;
+  color: #EDE9F6;
+  border-color: #2E2754 !important;
+}
+
+html.night-mode .text-\[\#29235D\],
+html.dark .text-\[\#29235D\] {
+  color: #EDE9F6 !important;
+}
+
+html.night-mode .text-gray-800,
+html.dark .text-gray-800,
+html.night-mode .text-gray-700,
+html.dark .text-gray-700 {
+  color: #D6D0E3 !important;
+}
+
+html.night-mode .text-gray-600,
+html.dark .text-gray-600,
+html.night-mode .text-gray-500,
+html.dark .text-gray-500 {
+  color: #A39BB9 !important;
+}
+
+html.night-mode .border-gray-100,
+html.dark .border-gray-100,
+html.night-mode .border-gray-200,
+html.dark .border-gray-200,
+html.night-mode .border-\[\#29235D\]\/10,
+html.dark .border-\[\#29235D\]\/10,
+html.night-mode .border-\[\#29235D\]\/15,
+html.dark .border-\[\#29235D\]\/15 {
+  border-color: #2E2754 !important;
+}
+
+html.night-mode input,
+html.dark input,
+html.night-mode select,
+html.dark select,
+html.night-mode textarea,
+html.dark textarea {
+  background-color: #131124 !important;
+  color: #EDE9F6 !important;
+  border-color: #383066 !important;
+}
+
+html.night-mode input::placeholder,
+html.dark input::placeholder {
+  color: #6E6688 !important;
+}
+
+html.night-mode header,
+html.dark header {
+  background-color: rgba(19, 17, 36, 0.95) !important;
+  border-color: #2E2754 !important;
+}
+
+html.night-mode .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #262046 !important;
+}
+
+/* ========================================================= */
+/* SEPIA / WARM EYE-CARE READING MODE (وضع القراءة الدافئة) */
+/* ========================================================= */
+html.sepia-mode {
+  background-color: #F4ECE1;
+  color: #2E251D;
+}
+
+html.sepia-mode body {
+  background-color: #F4ECE1 !important;
+  color: #2E251D !important;
+}
+
+html.sepia-mode .bg-white {
+  background-color: #FAF5ED !important;
+  border-color: #DCCFBE !important;
+  color: #2E251D;
+}
+
+html.sepia-mode .bg-\[\#F8F6F0\],
+html.sepia-mode .bg-\[\#FBF9F4\] {
+  background-color: #EFE6D8 !important;
+  border-color: #DCCFBE !important;
+}
+
+html.sepia-mode header {
+  background-color: rgba(244, 236, 225, 0.95) !important;
+  border-color: #DCCFBE !important;
 }
 
 .font-arabic {
@@ -39,6 +162,11 @@
   background: #F1EFEA;
 }
 
+html.night-mode ::-webkit-scrollbar-track,
+html.dark ::-webkit-scrollbar-track {
+  background: #131124;
+}
+
 ::-webkit-scrollbar-thumb {
   background: #D3B673;
   border-radius: 9999px;
@@ -57,4 +185,5 @@
 .animate-pulse-subtle {
   animation: pulseSubtle 3s infinite ease-in-out;
 }
+
 

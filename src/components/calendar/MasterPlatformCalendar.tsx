@@ -1,7 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useI18n } from '../../lib/i18n';
-import { ClassSession, WeekDay, StudentProfile, TeacherProfile, SubscriptionStatus } from '../../types';
+import { ClassSession, WeekDay, StudentProfile, TeacherProfile, SubscriptionStatus, ClassSessionStatus } from '../../types';
+import { ColorKeysGuide } from '../common/ColorKeysGuide';
+import { COLOR_KEYS_CONFIG, COLOR_KEYS_ORDER, getClassStatusConfig } from '../../lib/colorKeys';
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -31,6 +33,11 @@ import {
   RefreshCw,
   Phone,
   MessageCircle,
+  Repeat,
+  Timer,
+  RotateCw,
+  CalendarRange,
+  Info,
 } from 'lucide-react';
 
 interface MasterPlatformCalendarProps {
@@ -48,6 +55,26 @@ const WEEK_DAYS: { key: WeekDay; dayIndex: number; labelAr: string; labelEn: str
   { key: 'FRIDAY', dayIndex: 5, labelAr: 'الجمعة', labelEn: 'Friday', shortAr: 'جمعة', shortEn: 'Fri' },
 ];
 
+const DURATION_PRESETS = [
+  { minutes: 30, labelAr: 'نصف ساعة (30 د)', labelEn: '30 min', shortAr: '½ ساعة' },
+  { minutes: 45, labelAr: '45 دقيقة', labelEn: '45 min', shortAr: '45 د' },
+  { minutes: 60, labelAr: 'ساعة كاملة (60 د)', labelEn: '1 hour', shortAr: '1 ساعة' },
+  { minutes: 90, labelAr: 'ساعة ونصف (90 د)', labelEn: '1.5 hrs', shortAr: '1½ ساعة' },
+  { minutes: 120, labelAr: 'ساعتان (120 د)', labelEn: '2 hours', shortAr: '2 ساعة' },
+  { minutes: 150, labelAr: 'ساعتان ونصف', labelEn: '2.5 hrs', shortAr: '2½ ساعة' },
+  { minutes: 180, labelAr: '3 ساعات', labelEn: '3 hours', shortAr: '3 ساعات' },
+  { minutes: 240, labelAr: '4 ساعات', labelEn: '4 hours', shortAr: '4 ساعات' },
+];
+
+const RECURRENCE_COUNT_PRESETS = [
+  { count: 2, labelAr: 'أسبوعان (حصتان)', labelEn: '2 Weeks (2 Classes)' },
+  { count: 4, labelAr: 'شهر كامل (4 أسابيع / 4 حصص)', labelEn: '1 Month (4 Weeks)' },
+  { count: 8, labelAr: 'شهران (8 أسابيع / 8 حصص)', labelEn: '2 Months (8 Weeks)' },
+  { count: 12, labelAr: '3 أشهر (12 أسبوعاً / 12 حصة)', labelEn: '3 Months (12 Weeks)' },
+  { count: 16, labelAr: 'فصل دراسي (16 أسبوعاً / 16 حصة)', labelEn: 'Semester (16 Weeks)' },
+  { count: 24, labelAr: 'نصف سنة (24 أسبوعاً / 24 حصة)', labelEn: 'Half-Year (24 Weeks)' },
+];
+
 export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
   onNavigateTab,
   defaultView = 'WEEK',
@@ -61,6 +88,7 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
     subscriptions,
     attendance,
     addClassSession,
+    addClassSessionsBatch,
     updateClassSession,
     deleteClassSession,
     markAttendance,
@@ -87,7 +115,12 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
   const [filterStudentId, setFilterStudentId] = useState<string>('ALL');
   const [filterProgramId, setFilterProgramId] = useState<string>('ALL');
   const [filterQuotaStatus, setFilterQuotaStatus] = useState<'ALL' | 'ACTIVE' | 'DEPLETED'>('ALL');
+  const [filterStatusKey, setFilterStatusKey] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Month Calendar View State
+  const [calendarMonth, setCalendarMonth] = useState<number>(() => new Date().getMonth());
+  const [calendarYear, setCalendarYear] = useState<number>(() => new Date().getFullYear());
 
   // Modals State
   const [showAddClassModal, setShowAddClassModal] = useState(false);
@@ -98,17 +131,27 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
   const [rechargeNotes, setRechargeNotes] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // New Class Form State
+  // New Class Form State (1-to-1 vs Group Support)
+  const [newStudyMode, setNewStudyMode] = useState<'PRIVATE' | 'GROUP'>('PRIVATE');
   const [newTitle, setNewTitle] = useState('');
   const [newTitleAr, setNewTitleAr] = useState('');
   const [newProgramId, setNewProgramId] = useState(programs[0]?.id || '');
   const [newTeacherId, setNewTeacherId] = useState(isTeacher ? currentUser.id : teachers[0]?.id || '');
   const [newStudentId, setNewStudentId] = useState(students[0]?.id || '');
+  const [newGroupStudentIds, setNewGroupStudentIds] = useState<string[]>(students.length > 0 ? [students[0].id] : []);
+  const [studentSearchInModal, setStudentSearchInModal] = useState<string>('');
   const [newDate, setNewDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [newStartTime, setNewStartTime] = useState('17:00');
   const [newEndTime, setNewEndTime] = useState('18:00');
+  const [newDurationMinutes, setNewDurationMinutes] = useState<number>(60);
   const [newZoomUrl, setNewZoomUrl] = useState(settings.defaultZoomLink || 'https://zoom.us/j/9876543210');
   const [newTopic, setNewTopic] = useState('');
+
+  // Recurrence / Repetition State
+  const [recurrenceMode, setRecurrenceMode] = useState<'ONCE' | 'WEEKS' | 'INFINITE'>('ONCE');
+  const [recurrenceWeeksCount, setRecurrenceWeeksCount] = useState<number>(4);
+  const [recurrenceSelectedDays, setRecurrenceSelectedDays] = useState<WeekDay[]>([]);
+  const [showRecurrencePreview, setShowRecurrencePreview] = useState<boolean>(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -145,6 +188,11 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
         if (filterQuotaStatus === 'ACTIVE' && hasDepletedStudent) return false;
       }
 
+      // Status key filter (Color Keys)
+      if (filterStatusKey !== 'ALL' && cls.status !== filterStatusKey) {
+        return false;
+      }
+
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -157,10 +205,159 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
 
       return true;
     });
-  }, [scopedClasses, filterTeacherId, filterStudentId, filterProgramId, filterQuotaStatus, searchQuery, teachers, getStudentQuota]);
+  }, [scopedClasses, filterTeacherId, filterStudentId, filterProgramId, filterQuotaStatus, filterStatusKey, searchQuery, teachers, getStudentQuota]);
+
+  // Compute status counts for ColorKeysGuide
+  const statusCounts = useMemo(() => {
+    const counts: Partial<Record<ClassSessionStatus, number>> = {};
+    scopedClasses.forEach(cls => {
+      const st = cls.status as ClassSessionStatus;
+      counts[st] = (counts[st] || 0) + 1;
+    });
+    return counts;
+  }, [scopedClasses]);
+
+  // Handle Quick Status Change for a class session
+  const handleQuickStatusChange = (classId: string, newStatus: ClassSessionStatus) => {
+    updateClassSession(classId, { status: newStatus });
+    
+    // Automatically record attendance when marked completed or absent
+    const targetClass = classes.find(c => c.id === classId);
+    if (targetClass && targetClass.studentIds.length > 0) {
+      const primaryStudentId = targetClass.studentIds[0];
+      if (newStatus === 'COMPLETED') {
+        markAttendance({
+          sessionId: targetClass.id,
+          programId: targetClass.programId,
+          studentId: primaryStudentId,
+          teacherId: targetClass.teacherId,
+          date: targetClass.date,
+          status: 'PRESENT',
+          notes: `تم الحضور وإتمام الدرس بنجاح (${targetClass.title})`,
+        });
+        showToast(isRTL ? '✅ تم تحديث حالة الحصة إلى مكتملة وتسجيل حضور الطالب بنجاح' : '✅ Marked as Completed & Attendance recorded');
+      } else if (newStatus === 'ABSENT') {
+        markAttendance({
+          sessionId: targetClass.id,
+          programId: targetClass.programId,
+          studentId: primaryStudentId,
+          teacherId: targetClass.teacherId,
+          date: targetClass.date,
+          status: 'ABSENT',
+          notes: `غياب بدون عذر (${targetClass.title})`,
+        });
+        showToast(isRTL ? '⚠️ تم تسجيل غياب الطالب وخصم الحصة من الرصيد' : '⚠️ Student marked Absent; quota deducted');
+      } else {
+        const config = getClassStatusConfig(newStatus);
+        showToast(isRTL ? `تم تغيير حالة الحصة إلى: ${config.labelAr}` : `Status updated to: ${config.labelEn}`);
+      }
+    }
+  };
 
   // Calculate current student's quota if student role
   const currentStudentQuota = isStudent ? getStudentQuota(currentUser.id) : null;
+
+  // Time & Duration Calculation Helpers
+  const calculateEndTimeFromDuration = (startTime: string, minutes: number): string => {
+    const [hStr, mStr] = (startTime || '17:00').split(':');
+    let h = parseInt(hStr, 10) || 0;
+    let m = parseInt(mStr, 10) || 0;
+    let total = h * 60 + m + minutes;
+    total = total % (24 * 60);
+    const newH = Math.floor(total / 60);
+    const newM = total % 60;
+    return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
+  };
+
+  const handleStartTimeChange = (newStart: string) => {
+    setNewStartTime(newStart);
+    setNewEndTime(calculateEndTimeFromDuration(newStart, newDurationMinutes));
+  };
+
+  const handleDurationSelect = (mins: number) => {
+    setNewDurationMinutes(mins);
+    setNewEndTime(calculateEndTimeFromDuration(newStartTime, mins));
+  };
+
+  const handleEndTimeChange = (newEnd: string) => {
+    setNewEndTime(newEnd);
+    const [h1, m1] = (newStartTime || '17:00').split(':').map(Number);
+    const [h2, m2] = (newEnd || '18:00').split(':').map(Number);
+    let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+    if (diff <= 0) diff += 24 * 60;
+    setNewDurationMinutes(diff);
+  };
+
+  const getDayKeyFromDate = (dateStr: string): WeekDay => {
+    try {
+      const d = new Date(dateStr + 'T00:00:00');
+      const idx = d.getDay(); // 0 Sun, 1 Mon, 2 Tue, 3 Wed, 4 Thu, 5 Fri, 6 Sat
+      const found = WEEK_DAYS.find(w => w.dayIndex === idx);
+      return found ? found.key : 'SATURDAY';
+    } catch {
+      return 'SATURDAY';
+    }
+  };
+
+  // Generate Recurring Dates based on Recurrence Mode and Weekdays
+  const generatedRecurringDates = useMemo(() => {
+    if (recurrenceMode === 'ONCE') {
+      return [newDate];
+    }
+
+    const weeksToGenerate = recurrenceMode === 'INFINITE' ? 52 : (recurrenceWeeksCount || 1);
+    const primaryDay = getDayKeyFromDate(newDate);
+    const targetDays = recurrenceSelectedDays.length > 0 ? recurrenceSelectedDays : [primaryDay];
+
+    const resultDates: string[] = [];
+    const baseDate = new Date(newDate + 'T00:00:00');
+    const baseDayIdx = baseDate.getDay();
+
+    for (let w = 0; w < weeksToGenerate; w++) {
+      targetDays.forEach(dayKey => {
+        const dayObj = WEEK_DAYS.find(d => d.key === dayKey);
+        if (dayObj) {
+          const dayOffset = (dayObj.dayIndex - baseDayIdx + 7) % 7;
+          const curr = new Date(baseDate);
+          curr.setDate(baseDate.getDate() + (w * 7) + dayOffset);
+          const dStr = curr.toISOString().split('T')[0];
+          if (!resultDates.includes(dStr)) {
+            resultDates.push(dStr);
+          }
+        }
+      });
+    }
+
+    resultDates.sort();
+    return resultDates;
+  }, [newDate, recurrenceMode, recurrenceWeeksCount, recurrenceSelectedDays]);
+
+  // Open Add Class Modal for a specific calendar date (from Month or Day View)
+  const handleOpenAddForDate = (targetDateStr: string) => {
+    if (!canSchedule) {
+      alert(isRTL ? 'صلاحية جدولة الحصص مقيدة لحسابك' : 'Class scheduling is restricted for your role');
+      return;
+    }
+    setNewDate(targetDateStr);
+    const dayKey = getDayKeyFromDate(targetDateStr);
+    setRecurrenceSelectedDays([dayKey]);
+    setRecurrenceMode('ONCE');
+    setRecurrenceWeeksCount(4);
+    setNewDurationMinutes(60);
+    setNewEndTime(calculateEndTimeFromDuration(newStartTime, 60));
+
+    if (isTeacher) {
+      setNewTeacherId(currentUser.id);
+    }
+    setNewTitle(isRTL ? `حصة دراسية (${targetDateStr})` : `Class Session (${targetDateStr})`);
+    setNewTitleAr(isRTL ? `حصة دراسية (${targetDateStr})` : `Class Session (${targetDateStr})`);
+    setNewStudyMode('PRIVATE');
+    if (students.length > 0 && !newStudentId) {
+      setNewStudentId(students[0].id);
+      setNewGroupStudentIds([students[0].id]);
+    }
+    setShowAddClassModal(true);
+  };
 
   // Open Add Class Modal pre-filled for specific Day
   const handleOpenAddForDay = (dayKey: WeekDay, targetDateStr?: string) => {
@@ -184,6 +381,12 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
       }
     }
 
+    setRecurrenceSelectedDays([dayKey]);
+    setRecurrenceMode('ONCE');
+    setRecurrenceWeeksCount(4);
+    setNewDurationMinutes(60);
+    setNewEndTime(calculateEndTimeFromDuration(newStartTime, 60));
+
     if (isTeacher) {
       setNewTeacherId(currentUser.id);
     }
@@ -191,54 +394,99 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
     const dayName = WEEK_DAYS.find(d => d.key === dayKey);
     setNewTitle(isRTL ? `حصة ${dayName?.labelAr || ''}` : `${dayName?.labelEn || ''} Session`);
     setNewTitleAr(isRTL ? `حصة ${dayName?.labelAr || ''}` : `${dayName?.labelEn || ''} Session`);
+    setNewStudyMode('PRIVATE');
     setShowAddClassModal(true);
   };
 
-  // Handle Schedule Submit
+  // Handle Schedule Submit (Single or Multi-Week Recurring, 1-on-1 vs Group)
   const handleScheduleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !newStudentId) {
-      alert(isRTL ? 'يرجى ملء جميع الحقول المطلوبة واختيار الطالب' : 'Please fill all required fields and select student');
+    if (!newTitle.trim()) {
+      alert(isRTL ? 'يرجى كتابة عنوان للحصة' : 'Please enter class title');
       return;
     }
 
-    // Check student quota
-    const quota = getStudentQuota(newStudentId);
-    const selectedStudent = students.find(s => s.id === newStudentId);
+    const targetStudentIds = newStudyMode === 'PRIVATE' 
+      ? (newStudentId ? [newStudentId] : []) 
+      : newGroupStudentIds;
 
-    addClassSession({
-      programId: newProgramId || programs[0]?.id || 'prg-01',
-      teacherId: newTeacherId || teachers[0]?.id || 'tea-01',
-      studentIds: [newStudentId],
-      title: newTitle.trim(),
-      titleArabic: newTitleAr.trim() || newTitle.trim(),
-      topic: newTopic.trim() || undefined,
-      date: newDate,
-      startTime: newStartTime,
-      endTime: newEndTime,
-      zoomUrl: newZoomUrl,
-      zoomMeetingId: '987 654 3210',
-      zoomPassword: 'ALTEQ2026',
-      status: 'SCHEDULED',
-      isLockedDueToQuota: quota.remainingSessions <= 0 || quota.isExpired,
+    if (targetStudentIds.length === 0) {
+      alert(isRTL ? 'يرجى اختيار طالب واحد على الأقل للحصة' : 'Please select at least one student');
+      return;
+    }
+
+    // Check if any selected student has depleted quota
+    const hasDepletedStudent = targetStudentIds.some(sId => {
+      const q = getStudentQuota(sId);
+      return q.remainingSessions <= 0 || q.isExpired;
     });
+
+    const datesToSchedule = generatedRecurringDates.length > 0 ? generatedRecurringDates : [newDate];
+
+    if (datesToSchedule.length === 1) {
+      addClassSession({
+        programId: newProgramId || programs[0]?.id || 'prg-01',
+        teacherId: newTeacherId || teachers[0]?.id || 'tea-01',
+        studentIds: targetStudentIds,
+        studyMode: newStudyMode,
+        title: newTitle.trim(),
+        titleArabic: newTitleAr.trim() || newTitle.trim(),
+        topic: newTopic.trim() || undefined,
+        date: datesToSchedule[0],
+        startTime: newStartTime,
+        endTime: newEndTime,
+        zoomUrl: newZoomUrl || settings.defaultZoomLink || 'https://zoom.us/j/9876543210',
+        zoomMeetingId: '987 654 3210',
+        zoomPassword: 'ALTEQ2026',
+        status: 'SCHEDULED',
+        isLockedDueToQuota: hasDepletedStudent,
+      });
+    } else {
+      const batchList = datesToSchedule.map((d, index) => ({
+        programId: newProgramId || programs[0]?.id || 'prg-01',
+        teacherId: newTeacherId || teachers[0]?.id || 'tea-01',
+        studentIds: targetStudentIds,
+        studyMode: newStudyMode,
+        title: newTitle.trim(),
+        titleArabic: newTitleAr.trim() || newTitle.trim(),
+        topic: newTopic.trim() ? `${newTopic.trim()} (جلسة ${index + 1})` : undefined,
+        date: d,
+        startTime: newStartTime,
+        endTime: newEndTime,
+        zoomUrl: newZoomUrl || settings.defaultZoomLink || 'https://zoom.us/j/9876543210',
+        zoomMeetingId: '987 654 3210',
+        zoomPassword: 'ALTEQ2026',
+        status: 'SCHEDULED' as ClassSessionStatus,
+        isLockedDueToQuota: hasDepletedStudent,
+      }));
+
+      addClassSessionsBatch(batchList);
+    }
 
     setShowAddClassModal(false);
     setNewTitle('');
     setNewTitleAr('');
     setNewTopic('');
 
-    if (quota.remainingSessions <= 0) {
+    const dayName = WEEK_DAYS.find(w => w.key === getDayKeyFromDate(newDate));
+
+    if (datesToSchedule.length > 1) {
       showToast(
         isRTL
-          ? `⚠️ تمت إضافة الحصة، ولكن رصيد الطالب (${selectedStudent?.name}) منتهي (0 حصص). الحصة غير مفعّلة حتى يتم الشحن.`
-          : `⚠️ Class added, but student (${selectedStudent?.name}) has 0 remaining sessions. Class will stay inactive until recharged.`
+          ? `🔄 تم بنجاح تكرار وجدولة ${datesToSchedule.length} حصة في التقويم (كل ${dayName?.labelAr || ''} حتى ${datesToSchedule[datesToSchedule.length - 1]})`
+          : `🔄 Successfully scheduled ${datesToSchedule.length} recurring classes (${dayName?.labelEn} until ${datesToSchedule[datesToSchedule.length - 1]})`
+      );
+    } else if (hasDepletedStudent) {
+      showToast(
+        isRTL
+          ? `⚠️ تمت إضافة الحصة، ولكن يوجد طالب رصيده 0 حصص. ستبقى الحصة مقفلة حتى الشحن.`
+          : `⚠️ Class added, but one or more students have 0 remaining quota.`
       );
     } else {
       showToast(
         isRTL
-          ? `✅ تمت جدولة الحصة بنجاح! رصيد الطالب: ${quota.remainingSessions} حصص متبقية.`
-          : `✅ Class scheduled successfully! Student quota: ${quota.remainingSessions} remaining.`
+          ? `✅ تمت جدولة الحصة بنجاح! (${newStudyMode === 'GROUP' ? `حلقة جماعية: ${targetStudentIds.length} طلاب` : 'حصة فردية خاصة'})`
+          : `✅ Class scheduled successfully! (${newStudyMode === 'GROUP' ? `Group circle: ${targetStudentIds.length} students` : '1-on-1 private'})`
       );
     }
   };
@@ -316,6 +564,123 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
       };
     });
   }, [filteredClasses]);
+
+  const MONTH_NAMES = [
+    { index: 0, ar: 'يناير', en: 'January' },
+    { index: 1, ar: 'فبراير', en: 'February' },
+    { index: 2, ar: 'مارس', en: 'March' },
+    { index: 3, ar: 'أبريل', en: 'April' },
+    { index: 4, ar: 'مايو', en: 'May' },
+    { index: 5, ar: 'يونيو', en: 'June' },
+    { index: 6, ar: 'يوليو', en: 'July' },
+    { index: 7, ar: 'أغسطس', en: 'August' },
+    { index: 8, ar: 'سبتمبر', en: 'September' },
+    { index: 9, ar: 'أكتوبر', en: 'October' },
+    { index: 10, ar: 'نوفمبر', en: 'November' },
+    { index: 11, ar: 'ديسمبر', en: 'December' },
+  ];
+
+  // Compute Standard Month Calendar Grid Data (Saturday-first)
+  const monthGridData = useMemo(() => {
+    const firstDayObj = new Date(calendarYear, calendarMonth, 1);
+    const firstDayOfWeek = firstDayObj.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
+    // Saturday-first offset (Sat=0, Sun=1, Mon=2, Tue=3, Wed=4, Thu=5, Fri=6)
+    const startOffset = (firstDayOfWeek + 1) % 7;
+
+    const totalDaysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+    const prevMonthTotalDays = new Date(calendarYear, calendarMonth, 0).getDate();
+
+    const cells: {
+      dayNumber: number;
+      isCurrentMonth: boolean;
+      dateStr: string;
+      isToday: boolean;
+      classes: ClassSession[];
+    }[] = [];
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // Leading days from previous month
+    for (let i = startOffset - 1; i >= 0; i--) {
+      const dayNum = prevMonthTotalDays - i;
+      const prevDate = new Date(calendarYear, calendarMonth - 1, dayNum);
+      const m = String(prevDate.getMonth() + 1).padStart(2, '0');
+      const d = String(dayNum).padStart(2, '0');
+      const dateStr = `${prevDate.getFullYear()}-${m}-${d}`;
+      const dayClasses = filteredClasses.filter(c => c.date === dateStr);
+      cells.push({
+        dayNumber: dayNum,
+        isCurrentMonth: false,
+        dateStr,
+        isToday: dateStr === todayStr,
+        classes: dayClasses,
+      });
+    }
+
+    // Days in current month
+    for (let d = 1; d <= totalDaysInMonth; d++) {
+      const mStr = String(calendarMonth + 1).padStart(2, '0');
+      const dStr = String(d).padStart(2, '0');
+      const dateStr = `${calendarYear}-${mStr}-${dStr}`;
+      const dayClasses = filteredClasses.filter(c => c.date === dateStr);
+      cells.push({
+        dayNumber: d,
+        isCurrentMonth: true,
+        dateStr,
+        isToday: dateStr === todayStr,
+        classes: dayClasses,
+      });
+    }
+
+    // Trailing days from next month to complete the grid
+    const remaining = (7 - (cells.length % 7)) % 7;
+    for (let i = 1; i <= remaining; i++) {
+      const nextDate = new Date(calendarYear, calendarMonth + 1, i);
+      const m = String(nextDate.getMonth() + 1).padStart(2, '0');
+      const d = String(i).padStart(2, '0');
+      const dateStr = `${nextDate.getFullYear()}-${m}-${d}`;
+      const dayClasses = filteredClasses.filter(c => c.date === dateStr);
+      cells.push({
+        dayNumber: i,
+        isCurrentMonth: false,
+        dateStr,
+        isToday: dateStr === todayStr,
+        classes: dayClasses,
+      });
+    }
+
+    return cells;
+  }, [calendarYear, calendarMonth, filteredClasses]);
+
+  const currentMonthClassesCount = useMemo(() => {
+    const mStr = String(calendarMonth + 1).padStart(2, '0');
+    const prefix = `${calendarYear}-${mStr}`;
+    return filteredClasses.filter(c => c.date.startsWith(prefix)).length;
+  }, [calendarYear, calendarMonth, filteredClasses]);
+
+  const handlePrevMonth = () => {
+    if (calendarMonth === 0) {
+      setCalendarMonth(11);
+      setCalendarYear(prev => prev - 1);
+    } else {
+      setCalendarMonth(prev => prev - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (calendarMonth === 11) {
+      setCalendarMonth(0);
+      setCalendarYear(prev => prev + 1);
+    } else {
+      setCalendarMonth(prev => prev + 1);
+    }
+  };
+
+  const handleJumpToToday = () => {
+    const now = new Date();
+    setCalendarMonth(now.getMonth());
+    setCalendarYear(now.getFullYear());
+  };
 
   return (
     <div className="space-y-6">
@@ -449,13 +814,34 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
         )
       )}
 
-      {/* 3. Controls & Filter Bar */}
-      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-[#29235D]/10 shadow-xs space-y-4">
+      {/* 3. Standardized Color Keys Strip & Interactive Guide (Color Keys Bar) */}
+      <ColorKeysGuide
+        selectedStatus={filterStatusKey}
+        onSelectStatus={setFilterStatusKey}
+        showDetailsToggle={true}
+        statusCounts={statusCounts}
+        userRole={currentUser?.role as any}
+      />
+
+      {/* 4. Controls & Filter Bar */}
+      <div className="bg-white night:bg-[#18152E] rounded-3xl p-4 sm:p-5 border border-[#29235D]/10 night:border-[#393168] shadow-xs space-y-4">
         
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           
           {/* View Mode Switcher */}
           <div className="flex items-center gap-1.5 p-1 bg-[#F8F6F0] rounded-2xl border border-gray-200 overflow-x-auto text-xs font-bold">
+            <button
+              onClick={() => setViewMode('MONTH')}
+              className={`px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all ${
+                viewMode === 'MONTH'
+                  ? 'bg-[#29235D] text-[#D3B673] shadow-xs'
+                  : 'text-[#786F9A] hover:text-[#29235D]'
+              }`}
+            >
+              <CalendarDays className="w-4 h-4" />
+              <span>{isRTL ? 'التقويم الشهري الكامل (شهر/سنة)' : 'Month / Year Calendar'}</span>
+            </button>
+
             <button
               onClick={() => setViewMode('WEEK')}
               className={`px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all ${
@@ -464,7 +850,7 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
                   : 'text-[#786F9A] hover:text-[#29235D]'
               }`}
             >
-              <CalendarDays className="w-4 h-4" />
+              <Layers className="w-4 h-4" />
               <span>{isRTL ? 'الجدول الأسبوعي (7 أيام)' : 'Weekly Matrix (7 Days)'}</span>
             </button>
 
@@ -593,7 +979,215 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
 
       </div>
 
-      {/* 4. MAIN VIEW: WEEKLY MATRIX (7 Columns: Saturday to Friday) */}
+      {/* 4. MAIN VIEW: STANDARD MONTH / YEAR CALENDAR (تقويم شهري وسنوي قياسي) */}
+      {viewMode === 'MONTH' && (
+        <div className="bg-white night:bg-[#18152E] rounded-3xl p-4 sm:p-6 border border-[#29235D]/10 night:border-[#393168] shadow-xs space-y-4">
+          
+          {/* Month / Year Navigation & Quick Jump Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100 night:border-gray-800">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Previous Month */}
+              <button
+                onClick={handlePrevMonth}
+                className="p-2.5 rounded-2xl bg-[#F8F6F0] night:bg-[#231E44] hover:bg-[#29235D] text-[#29235D] night:text-white hover:text-[#D3B673] transition-all cursor-pointer border border-gray-200 night:border-gray-700"
+                title={isRTL ? 'الشهر السابق' : 'Previous Month'}
+              >
+                <ChevronRight className="w-4 h-4 rtl:rotate-180" />
+              </button>
+
+              {/* Month Select */}
+              <select
+                value={calendarMonth}
+                onChange={e => setCalendarMonth(Number(e.target.value))}
+                className="px-3.5 py-2 rounded-2xl bg-[#F8F6F0] night:bg-[#231E44] border border-gray-200 night:border-gray-700 text-sm font-bold text-[#29235D] night:text-white focus:ring-2 focus:ring-[#D3B673]"
+              >
+                {MONTH_NAMES.map(m => (
+                  <option key={m.index} value={m.index}>
+                    {isRTL ? m.ar : m.en}
+                  </option>
+                ))}
+              </select>
+
+              {/* Year Select */}
+              <select
+                value={calendarYear}
+                onChange={e => setCalendarYear(Number(e.target.value))}
+                className="px-3.5 py-2 rounded-2xl bg-[#F8F6F0] night:bg-[#231E44] border border-gray-200 night:border-gray-700 text-sm font-bold text-[#29235D] night:text-white font-mono focus:ring-2 focus:ring-[#D3B673]"
+              >
+                {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+
+              {/* Next Month */}
+              <button
+                onClick={handleNextMonth}
+                className="p-2.5 rounded-2xl bg-[#F8F6F0] night:bg-[#231E44] hover:bg-[#29235D] text-[#29235D] night:text-white hover:text-[#D3B673] transition-all cursor-pointer border border-gray-200 night:border-gray-700"
+                title={isRTL ? 'الشهر التالي' : 'Next Month'}
+              >
+                <ChevronLeft className="w-4 h-4 rtl:rotate-180" />
+              </button>
+
+              {/* Today Quick Jump */}
+              <button
+                onClick={handleJumpToToday}
+                className="px-3 py-2 rounded-2xl bg-white night:bg-[#29235D]/50 border border-[#D3B673] text-[#29235D] night:text-[#E8D5A3] hover:bg-[#D3B673]/15 text-xs font-bold transition-all cursor-pointer"
+              >
+                {isRTL ? 'اليوم' : 'Today'}
+              </button>
+            </div>
+
+            {/* Month Stats Summary & Add Class on this Month */}
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-gray-500 night:text-gray-400">
+                {isRTL
+                  ? `إجمالي الحصص بهذا الشهر: (${currentMonthClassesCount})`
+                  : `Month Sessions: (${currentMonthClassesCount})`}
+              </span>
+
+              {canSchedule && (
+                <button
+                  onClick={() => {
+                    const mStr = String(calendarMonth + 1).padStart(2, '0');
+                    handleOpenAddForDate(`${calendarYear}-${mStr}-01`);
+                  }}
+                  className="px-3.5 py-2 rounded-2xl bg-[#29235D] hover:bg-[#1D1845] text-[#D3B673] text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{isRTL ? 'إضافة حصة' : 'Add Class'}</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Days of the Week Column Headers (Saturday to Friday) */}
+          <div className="grid grid-cols-7 gap-1.5 sm:gap-2 text-center text-xs font-bold text-[#29235D] night:text-[#E8D5A3]">
+            {WEEK_DAYS.map(d => (
+              <div
+                key={d.key}
+                className="py-2 px-1 rounded-xl bg-[#F8F6F0] night:bg-[#231E44] border border-gray-100 night:border-gray-800"
+              >
+                <span className="hidden sm:inline">{isRTL ? d.labelAr : d.labelEn}</span>
+                <span className="sm:hidden">{isRTL ? d.shortAr : d.shortEn}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* 7-Column Month Day Cells Grid */}
+          <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+            {monthGridData.map((cell, idx) => {
+              const hasClasses = cell.classes.length > 0;
+              const hasDepletedClass = cell.classes.some(cls => {
+                return cls.studentIds.some(sId => {
+                  const quota = getStudentQuota(sId);
+                  return quota.remainingSessions <= 0 || quota.isExpired;
+                });
+              });
+
+              return (
+                <div
+                  key={`${cell.dateStr}-${idx}`}
+                  className={`min-h-[110px] sm:min-h-[130px] p-2 rounded-2xl border transition-all flex flex-col justify-between group ${
+                    cell.isToday
+                      ? 'ring-2 ring-[#D3B673] bg-[#D3B673]/5 dark:bg-[#D3B673]/10 border-[#D3B673]'
+                      : !cell.isCurrentMonth
+                      ? 'bg-gray-50/50 night:bg-gray-900/30 border-gray-100 night:border-gray-800/40 opacity-40'
+                      : hasDepletedClass
+                      ? 'bg-amber-50/30 night:bg-amber-950/20 border-amber-200'
+                      : 'bg-white night:bg-[#1E193C] border-gray-200/70 night:border-gray-700/60 hover:border-[#D3B673]'
+                  }`}
+                >
+                  {/* Top Day Header in Cell */}
+                  <div className="flex items-center justify-between mb-1">
+                    <span
+                      className={`text-xs font-bold inline-flex items-center justify-center w-6 h-6 rounded-full ${
+                        cell.isToday
+                          ? 'bg-[#29235D] text-[#D3B673]'
+                          : cell.isCurrentMonth
+                          ? 'text-[#29235D] night:text-white'
+                          : 'text-gray-400'
+                      }`}
+                    >
+                      {cell.dayNumber}
+                    </span>
+
+                    <div className="flex items-center gap-1">
+                      {hasClasses && (
+                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-[#29235D]/10 night:bg-white/10 text-[#29235D] night:text-white">
+                          {cell.classes.length}
+                        </span>
+                      )}
+
+                      {canSchedule && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAddForDate(cell.dateStr)}
+                          className="opacity-0 group-hover:opacity-100 sm:opacity-0 focus:opacity-100 hover:opacity-100 transition-opacity w-5 h-5 rounded-md bg-[#29235D] hover:bg-[#D3B673] text-[#D3B673] hover:text-[#29235D] flex items-center justify-center cursor-pointer text-xs"
+                          title={isRTL ? `إضافة حصة بتاريخ ${cell.dateStr}` : `Add class on ${cell.dateStr}`}
+                        >
+                          +
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Sessions List within Cell */}
+                  <div className="space-y-1 overflow-y-auto max-h-[85px] sm:max-h-[95px] pr-0.5">
+                    {cell.classes.map(cls => {
+                      const statusConfig = getClassStatusConfig(cls.status);
+                      const isGroup = cls.studyMode === 'GROUP' || cls.studentIds.length > 1;
+                      const primaryStudent = students.find(s => cls.studentIds.includes(s.id));
+                      const quota = primaryStudent ? getStudentQuota(primaryStudent.id) : null;
+                      const isDepleted = quota ? quota.remainingSessions <= 0 || quota.isExpired : false;
+
+                      return (
+                        <div
+                          key={cls.id}
+                          style={{ borderRightColor: isRTL ? statusConfig.hex : undefined, borderLeftColor: !isRTL ? statusConfig.hex : undefined, borderWidth: isRTL ? '0 3px 0 0' : '0 0 0 3px' }}
+                          className={`p-1.5 rounded-lg text-[10px] leading-tight border transition-all cursor-pointer hover:shadow-xs ${
+                            isDepleted
+                              ? 'bg-amber-50 night:bg-amber-950/40 border-amber-300'
+                              : 'bg-[#FBF9F4] night:bg-[#231E44] border-gray-100 night:border-gray-700'
+                          }`}
+                          onClick={() => {
+                            if (cls.zoomUrl) {
+                              window.open(cls.zoomUrl, '_blank', 'noopener,noreferrer');
+                            }
+                          }}
+                          title={isRTL ? `${cls.titleArabic || cls.title} - ${cls.startTime}` : `${cls.title} - ${cls.startTime}`}
+                        >
+                          <div className="flex items-center justify-between gap-1 font-bold text-[#29235D] night:text-white">
+                            <span className="truncate">{cls.titleArabic || cls.title}</span>
+                            <span className="text-[9px] font-mono opacity-70 shrink-0">{cls.startTime}</span>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-1 text-[9px] text-gray-500 night:text-gray-400 mt-0.5">
+                            <span className="truncate">
+                              {isGroup
+                                ? (isRTL ? `👥 حلقة (${cls.studentIds.length})` : `👥 Group (${cls.studentIds.length})`)
+                                : (isRTL ? primaryStudent?.nameArabic || primaryStudent?.name : primaryStudent?.name)}
+                            </span>
+                            <span
+                              style={{ color: statusConfig.hex }}
+                              className="font-bold shrink-0 text-[8px]"
+                            >
+                              {isRTL ? statusConfig.labelAr : statusConfig.labelEn}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 5. MAIN VIEW: WEEKLY MATRIX (7 Columns: Saturday to Friday) */}
       {viewMode === 'WEEK' && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-3 sm:gap-4">
@@ -664,22 +1258,38 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
                         const student = students.find(s => cls.studentIds.includes(s.id));
                         const quota = student ? getStudentQuota(student.id) : null;
                         const isDepleted = quota ? quota.remainingSessions <= 0 || quota.isExpired : false;
+                        const statusConfig = getClassStatusConfig(cls.status);
 
                         return (
                           <div
                             key={cls.id}
+                            style={{ borderLeftColor: statusConfig.hex, borderLeftWidth: '4px' }}
                             className={`p-3 rounded-2xl border transition-all relative ${
                               isDepleted
-                                ? 'bg-rose-50/90 border-rose-300 shadow-xs'
-                                : 'bg-[#FBF9F4] border-gray-200 hover:border-[#D3B673] shadow-xs'
+                                ? 'bg-rose-50/90 night:bg-rose-950/40 border-rose-300 shadow-xs'
+                                : 'bg-[#FBF9F4] night:bg-[#18152E] border-gray-200 night:border-gray-700 hover:border-[#D3B673] shadow-xs'
                             }`}
                           >
-                            {/* Inactive Due to Quota Badge */}
-                            {isDepleted ? (
-                              <div className="mb-2 px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 text-[9px] font-extrabold flex items-center justify-between">
+                            {/* Inactive Due to Quota Badge or Color Key Status Badge */}
+                            <div className="mb-2 flex items-center justify-between gap-1 flex-wrap">
+                              <span
+                                style={{ backgroundColor: statusConfig.hex }}
+                                className="px-2 py-0.5 rounded-full text-[9px] font-bold text-white shadow-xs inline-flex items-center gap-1"
+                              >
+                                {cls.status === 'LIVE' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />}
+                                {cls.status === 'ABSENT' && <span>⚠️</span>}
+                                <span>{isRTL ? statusConfig.labelAr : statusConfig.labelEn}</span>
+                              </span>
+
+                              <span className="font-mono text-[10px] text-gray-500 font-semibold">{cls.startTime}</span>
+                            </div>
+
+                            {/* Quota Depletion Alert if Applicable */}
+                            {isDepleted && (
+                              <div className="mb-2 px-2 py-0.5 rounded-lg bg-rose-100 dark:bg-rose-900/50 border border-rose-300 text-rose-800 dark:text-rose-200 text-[9px] font-extrabold flex items-center justify-between">
                                 <span className="flex items-center gap-1">
                                   <Lock className="w-3 h-3 text-rose-600 flex-shrink-0" />
-                                  {isRTL ? 'الحصة غير مفعّلة (رصيد 0)' : 'Inactive (0 Quota)'}
+                                  {isRTL ? 'الرصيد 0 (غير مفعّلة)' : '0 Quota (Locked)'}
                                 </span>
                                 {canRecharge && student && (
                                   <button
@@ -690,23 +1300,16 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
                                   </button>
                                 )}
                               </div>
-                            ) : (
-                              <div className="mb-2 flex items-center justify-between text-[9px]">
-                                <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
-                                  {quota ? `متبقي ${quota.remainingSessions} حصص` : 'نشطة'}
-                                </span>
-                                <span className="font-mono text-gray-500 font-semibold">{cls.startTime}</span>
-                              </div>
                             )}
 
                             {/* Class Title */}
-                            <h4 className="text-xs font-bold text-[#29235D] line-clamp-1">
+                            <h4 className="text-xs font-bold text-[#29235D] night:text-white line-clamp-1">
                               {isRTL ? cls.titleArabic || cls.title : cls.title}
                             </h4>
 
                             {/* Student Name */}
                             {student && (
-                              <p className="text-[11px] text-gray-700 mt-1 flex items-center gap-1">
+                              <p className="text-[11px] text-gray-700 night:text-gray-300 mt-1 flex items-center gap-1">
                                 <GraduationCap className="w-3 h-3 text-[#D3B673]" />
                                 <span className="font-semibold">{isRTL ? student.nameArabic || student.name : student.name}</span>
                               </p>
@@ -714,21 +1317,32 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
 
                             {/* Teacher Name (if not in teacher view) */}
                             {!isTeacher && teacher && (
-                              <p className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-1">
+                              <p className="text-[10px] text-gray-500 night:text-gray-400 mt-0.5 flex items-center gap-1">
                                 <User className="w-2.5 h-2.5 text-gray-400" />
                                 <span>{isRTL ? teacher.nameArabic || teacher.name : teacher.name}</span>
                               </p>
                             )}
 
-                            {/* Program Name */}
-                            {program && (
-                              <span className="inline-block text-[9px] font-medium text-gray-400 mt-1 truncate max-w-full">
-                                {isRTL ? program.nameArabic || program.name : program.name}
-                              </span>
+                            {/* Quick Status Selector for Teacher/Admin */}
+                            {!isStudent && (
+                              <div className="mt-2 flex items-center justify-between gap-1 text-[9px]">
+                                <span className="text-gray-400 font-semibold">{isRTL ? 'الحالة:' : 'Status:'}</span>
+                                <select
+                                  value={cls.status}
+                                  onChange={(e) => handleQuickStatusChange(cls.id, e.target.value as ClassSessionStatus)}
+                                  className="text-[9px] font-bold bg-white night:bg-[#131124] border border-gray-300 night:border-gray-700 rounded px-1 py-0.5 text-gray-700 night:text-gray-200 cursor-pointer"
+                                >
+                                  {COLOR_KEYS_ORDER.map(st => (
+                                    <option key={st} value={st}>
+                                      {isRTL ? COLOR_KEYS_CONFIG[st].labelAr : COLOR_KEYS_CONFIG[st].labelEn}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
                             )}
 
                             {/* Quick Action Buttons */}
-                            <div className="mt-2.5 pt-2 border-t border-gray-200/60 flex items-center justify-between gap-1">
+                            <div className="mt-2.5 pt-2 border-t border-gray-200/60 night:border-gray-700/60 flex items-center justify-between gap-1">
                               {/* Zoom Link Button */}
                               {isDepleted && isStudent ? (
                                 <span
@@ -821,47 +1435,59 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
                 const student = students.find(s => cls.studentIds.includes(s.id));
                 const quota = student ? getStudentQuota(student.id) : null;
                 const isDepleted = quota ? quota.remainingSessions <= 0 || quota.isExpired : false;
+                const statusConfig = getClassStatusConfig(cls.status);
 
                 return (
                   <div
                     key={cls.id}
+                    style={{ borderLeftColor: statusConfig.hex, borderLeftWidth: '4px' }}
                     className={`p-5 rounded-3xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all ${
                       isDepleted
-                        ? 'bg-rose-50/70 border-rose-300'
-                        : 'bg-[#FBF9F4] border-gray-200'
+                        ? 'bg-rose-50/70 night:bg-rose-950/40 border-rose-300'
+                        : 'bg-[#FBF9F4] night:bg-[#18152E] border-gray-200 night:border-gray-700'
                     }`}
                   >
                     <div className="space-y-1.5 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
+                        {/* Status Color Badge */}
+                        <span
+                          style={{ backgroundColor: statusConfig.hex }}
+                          className="px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow-xs inline-flex items-center gap-1"
+                        >
+                          {cls.status === 'LIVE' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />}
+                          {cls.status === 'ABSENT' && <span>⚠️</span>}
+                          <span>{isRTL ? statusConfig.labelAr : statusConfig.labelEn}</span>
+                        </span>
+
                         {isDepleted ? (
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-200 text-rose-900 border border-rose-300 flex items-center gap-1">
                             <Lock className="w-3 h-3 text-rose-700" />
-                            {isRTL ? 'الحصة غير مفعّلة - رصيد الطالب منتهي (0)' : 'Inactive - Depleted Quota (0)'}
+                            {isRTL ? 'الرصيد منتهي (0)' : 'Depleted (0)'}
                           </span>
                         ) : (
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
                             <CheckCircle className="w-3 h-3 text-emerald-600" />
-                            {quota ? `متبقي ${quota.remainingSessions} حصص` : 'نشطة'}
+                            {quota ? `${quota.remainingSessions} ${isRTL ? 'حصص متبقية' : 'left'}` : 'نشطة'}
                           </span>
                         )}
 
-                        <span className="text-xs font-mono font-bold text-gray-500 flex items-center gap-1">
+                        <span className="text-xs font-mono font-bold text-gray-500 night:text-gray-400 flex items-center gap-1">
                           <Clock className="w-3.5 h-3.5 text-[#D3B673]" />
                           {cls.startTime} - {cls.endTime}
                         </span>
 
                         {program && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-white text-[#29235D] border border-gray-200">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-white night:bg-[#131124] text-[#29235D] night:text-[#E8D5A3] border border-gray-200 night:border-gray-700">
                             {isRTL ? program.nameArabic || program.name : program.name}
                           </span>
                         )}
                       </div>
 
-                      <h3 className="text-base font-bold text-[#29235D] font-serif">
+                      <h3 className="text-base font-bold text-[#29235D] night:text-white font-serif">
                         {isRTL ? cls.titleArabic || cls.title : cls.title}
                       </h3>
 
-                      <div className="flex items-center gap-4 text-xs text-gray-600 pt-1 flex-wrap">
+                      <div className="flex items-center gap-4 text-xs text-gray-600 night:text-gray-300 pt-1 flex-wrap">
                         {student && (
                           <span className="flex items-center gap-1">
                             <GraduationCap className="w-3.5 h-3.5 text-[#D3B673]" />
@@ -875,6 +1501,24 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
                           </span>
                         )}
                       </div>
+
+                      {/* Quick Status Selector for Teacher / Admin */}
+                      {!isStudent && (
+                        <div className="flex items-center gap-2 pt-1">
+                          <span className="text-[11px] text-gray-400 font-semibold">{isRTL ? 'تعديل الحالة:' : 'Change Status:'}</span>
+                          <select
+                            value={cls.status}
+                            onChange={(e) => handleQuickStatusChange(cls.id, e.target.value as ClassSessionStatus)}
+                            className="text-xs font-bold bg-white night:bg-[#131124] border border-gray-300 night:border-gray-700 rounded-lg px-2 py-1 text-gray-700 night:text-gray-200 cursor-pointer"
+                          >
+                            {COLOR_KEYS_ORDER.map(st => (
+                              <option key={st} value={st}>
+                                {isRTL ? COLOR_KEYS_CONFIG[st].labelAr : COLOR_KEYS_CONFIG[st].labelEn}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
 
                     {/* Actions */}
@@ -912,9 +1556,9 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
 
       {/* 6. DETAILED LIST VIEW */}
       {viewMode === 'LIST' && (
-        <div className="bg-white rounded-3xl p-6 border border-[#29235D]/10 shadow-xs space-y-4">
+        <div className="bg-white night:bg-[#18152E] rounded-3xl p-6 border border-[#29235D]/10 night:border-[#393168] shadow-xs space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-[#29235D] font-serif">
+            <h3 className="text-base font-bold text-[#29235D] night:text-[#E8D5A3] font-serif">
               {isRTL ? 'جميع الحصص المجدولة وجدول الطلاب' : 'All Scheduled Classes & Quota Logs'}
             </h3>
             <span className="text-xs text-gray-500 font-semibold">
@@ -929,17 +1573,30 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
               const student = students.find(s => cls.studentIds.includes(s.id));
               const quota = student ? getStudentQuota(student.id) : null;
               const isDepleted = quota ? quota.remainingSessions <= 0 || quota.isExpired : false;
+              const statusConfig = getClassStatusConfig(cls.status);
 
               return (
                 <div
                   key={cls.id}
+                  style={{ borderLeftColor: statusConfig.hex, borderLeftWidth: '4px' }}
                   className={`p-4 sm:p-5 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all ${
-                    isDepleted ? 'bg-rose-50/60 border-rose-200' : 'bg-[#FBF9F4] border-gray-100 hover:border-[#D3B673]'
+                    isDepleted
+                      ? 'bg-rose-50/60 night:bg-rose-950/40 border-rose-200'
+                      : 'bg-[#FBF9F4] night:bg-[#131124] border-gray-100 night:border-gray-800 hover:border-[#D3B673]'
                   }`}
                 >
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-mono font-bold text-gray-500 flex items-center gap-1">
+                      <span
+                        style={{ backgroundColor: statusConfig.hex }}
+                        className="px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow-xs inline-flex items-center gap-1"
+                      >
+                        {cls.status === 'LIVE' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />}
+                        {cls.status === 'ABSENT' && <span>⚠️</span>}
+                        <span>{isRTL ? statusConfig.labelAr : statusConfig.labelEn}</span>
+                      </span>
+
+                      <span className="text-xs font-mono font-bold text-gray-500 night:text-gray-400 flex items-center gap-1">
                         <CalendarIcon className="w-3.5 h-3.5 text-[#D3B673]" />
                         {cls.date} ({cls.startTime} - {cls.endTime})
                       </span>
@@ -950,16 +1607,16 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
                         </span>
                       ) : (
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                          {quota ? `متبقي ${quota.remainingSessions} حصص` : 'مفعّلة'}
+                          {quota ? `${quota.remainingSessions} ${isRTL ? 'حصص' : 'left'}` : 'مفعّلة'}
                         </span>
                       )}
                     </div>
 
-                    <h4 className="text-sm sm:text-base font-bold text-[#29235D] font-serif">
+                    <h4 className="text-sm sm:text-base font-bold text-[#29235D] night:text-white font-serif">
                       {isRTL ? cls.titleArabic || cls.title : cls.title}
                     </h4>
 
-                    <div className="flex items-center gap-4 text-xs text-gray-600 flex-wrap">
+                    <div className="flex items-center gap-4 text-xs text-gray-600 night:text-gray-300 flex-wrap">
                       {student && (
                         <span>
                           <strong>{isRTL ? 'الطالب:' : 'Student:'}</strong> {isRTL ? student.nameArabic || student.name : student.name}
@@ -976,6 +1633,24 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
                         </span>
                       )}
                     </div>
+
+                    {/* Quick Status selector for Teacher/Admin in list view */}
+                    {!isStudent && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="text-[11px] text-gray-400 font-semibold">{isRTL ? 'تعديل الحالة:' : 'Change Status:'}</span>
+                        <select
+                          value={cls.status}
+                          onChange={(e) => handleQuickStatusChange(cls.id, e.target.value as ClassSessionStatus)}
+                          className="text-xs font-bold bg-white night:bg-[#18152E] border border-gray-300 night:border-gray-700 rounded-lg px-2 py-1 text-gray-700 night:text-gray-200 cursor-pointer"
+                        >
+                          {COLOR_KEYS_ORDER.map(st => (
+                            <option key={st} value={st}>
+                              {isRTL ? COLOR_KEYS_CONFIG[st].labelAr : COLOR_KEYS_CONFIG[st].labelEn}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -1030,54 +1705,237 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
 
             <form onSubmit={handleScheduleSubmit} className="space-y-3.5 text-xs">
               
-              {/* Student Selector with Real-Time Quota Display */}
+              {/* 1-on-1 vs Group Circle Toggle */}
               <div>
-                <label className="block font-bold text-[#29235D] mb-1">
-                  {isRTL ? 'اختر المتدرب / الطالب *' : 'Select Student *'}
+                <label className="block font-bold text-[#29235D] mb-1.5">
+                  {isRTL ? 'نوع الحصة / نظام الدراسة *' : 'Session Type / Study Mode *'}
                 </label>
-                <select
-                  required
-                  value={newStudentId}
-                  onChange={e => setNewStudentId(e.target.value)}
-                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl font-bold text-[#29235D]"
-                >
-                  {students.map(s => {
-                    const quota = getStudentQuota(s.id);
-                    return (
-                      <option key={s.id} value={s.id}>
-                        {isRTL ? s.nameArabic || s.name : s.name} — [رصيد الحصص المتبقية: {quota.remainingSessions} {quota.remainingSessions > 0 ? '✅' : '⚠️ منتهي'}]
-                      </option>
-                    );
-                  })}
-                </select>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewStudyMode('PRIVATE');
+                      if (students.length > 0 && !newStudentId) {
+                        setNewStudentId(students[0].id);
+                      }
+                    }}
+                    className={`p-2.5 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all cursor-pointer ${
+                      newStudyMode === 'PRIVATE'
+                        ? 'bg-[#29235D] text-[#D3B673] border-[#29235D] shadow-xs'
+                        : 'bg-[#FBF9F4] text-gray-700 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    <User className="w-4 h-4" />
+                    <span>{isRTL ? 'حصة فردية خاصة (1-to-1)' : '1-on-1 Private'}</span>
+                  </button>
 
-                {/* Quota Check Alert Badge under selection */}
-                {(() => {
-                  const selQuota = getStudentQuota(newStudentId);
-                  if (selQuota.remainingSessions <= 0) {
-                    return (
-                      <div className="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 flex items-center justify-between">
-                        <span className="text-[11px] font-semibold flex items-center gap-1.5">
-                          <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                          {isRTL ? 'تنبيه: رصيد هذا الطالب 0 حصص. ستبقى الحصة غير مفعّلة حتى يتم الشحن.' : 'Warning: Student balance is 0. Class will be inactive until recharged.'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenRecharge(newStudentId)}
-                          className="px-2.5 py-1 rounded-lg bg-[#D3B673] hover:bg-[#E8D5A3] text-[#29235D] font-bold text-[10px] cursor-pointer"
-                        >
-                          {isRTL ? 'شحن رصيده الآن ⚡' : 'Recharge Now ⚡'}
-                        </button>
-                      </div>
-                    );
-                  }
-                  return (
-                    <p className="text-[11px] text-emerald-600 font-bold mt-1">
-                      {isRTL ? `✅ رصيد الطالب متاح (${selQuota.remainingSessions} حصص متبقية في الباقة)` : `✅ Active quota: ${selQuota.remainingSessions} sessions remaining`}
-                    </p>
-                  );
-                })()}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewStudyMode('GROUP');
+                      if (newGroupStudentIds.length === 0 && newStudentId) {
+                        setNewGroupStudentIds([newStudentId]);
+                      }
+                    }}
+                    className={`p-2.5 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all cursor-pointer ${
+                      newStudyMode === 'GROUP'
+                        ? 'bg-[#29235D] text-[#D3B673] border-[#29235D] shadow-xs'
+                        : 'bg-[#FBF9F4] text-gray-700 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Users className="w-4 h-4" />
+                    <span>{isRTL ? 'حلقة جماعية (مجموعة طلاب)' : 'Group Circle'}</span>
+                  </button>
+                </div>
               </div>
+
+              {/* Conditional Student Picker: 1-to-1 Single Dropdown vs Group Multi-Select */}
+              {newStudyMode === 'PRIVATE' ? (
+                <div>
+                  <label className="block font-bold text-[#29235D] mb-1">
+                    {isRTL ? 'اختر المتدرب / الطالب *' : 'Select Student *'}
+                  </label>
+                  <select
+                    required
+                    value={newStudentId}
+                    onChange={e => setNewStudentId(e.target.value)}
+                    className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl font-bold text-[#29235D]"
+                  >
+                    {students.map(s => {
+                      const quota = getStudentQuota(s.id);
+                      return (
+                        <option key={s.id} value={s.id}>
+                          {isRTL ? s.nameArabic || s.name : s.name} — [رصيد الحصص المتبقية: {quota.remainingSessions} {quota.remainingSessions > 0 ? '✅' : '⚠️ منتهي'}]
+                        </option>
+                      );
+                    })}
+                  </select>
+
+                  {/* Quota Check Alert Badge under selection */}
+                  {(() => {
+                    const selQuota = getStudentQuota(newStudentId);
+                    if (selQuota.remainingSessions <= 0) {
+                      return (
+                        <div className="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 flex items-center justify-between">
+                          <span className="text-[11px] font-semibold flex items-center gap-1.5">
+                            <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                            {isRTL ? 'تنبيه: رصيد هذا الطالب 0 حصص. ستبقى الحصة غير مفعّلة حتى يتم الشحن.' : 'Warning: Student balance is 0. Class will be inactive until recharged.'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenRecharge(newStudentId)}
+                            className="px-2.5 py-1 rounded-lg bg-[#D3B673] hover:bg-[#E8D5A3] text-[#29235D] font-bold text-[10px] cursor-pointer"
+                          >
+                            {isRTL ? 'شحن رصيده الآن ⚡' : 'Recharge Now ⚡'}
+                          </button>
+                        </div>
+                      );
+                    }
+                    return (
+                      <p className="text-[11px] text-emerald-600 font-bold mt-1">
+                        {isRTL ? `✅ رصيد الطالب متاح (${selQuota.remainingSessions} حصص متبقية في الباقة)` : `✅ Active quota: ${selQuota.remainingSessions} sessions remaining`}
+                      </p>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-[#29235D]">
+                      {isRTL ? 'اختر طلاب الحلقة الجماعية *' : 'Select Group Students *'}
+                    </label>
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setNewGroupStudentIds(students.map(s => s.id))}
+                        className="text-[#B89955] hover:underline font-bold cursor-pointer"
+                      >
+                        {isRTL ? 'تحديد الكل' : 'Select All'}
+                      </button>
+                      <span className="text-gray-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setNewGroupStudentIds([])}
+                        className="text-gray-500 hover:underline font-bold cursor-pointer"
+                      >
+                        {isRTL ? 'إلغاء التحديد' : 'Clear'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Selected count info & Badges */}
+                  <div className="p-3 rounded-2xl bg-[#F8F6F0] border border-[#29235D]/10">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-bold text-[#29235D] text-xs">
+                        {isRTL
+                          ? `👥 الطلاب المحددين في الحلقة (${newGroupStudentIds.length} من أصل ${students.length})`
+                          : `👥 Selected Students (${newGroupStudentIds.length} of ${students.length})`}
+                      </span>
+                      {newGroupStudentIds.length === 0 && (
+                        <span className="text-[10px] text-red-500 font-bold">
+                          {isRTL ? '⚠️ يجب اختيار طالب واحد على الأقل' : 'Select at least 1'}
+                        </span>
+                      )}
+                    </div>
+
+                    {newGroupStudentIds.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto mb-2.5">
+                        {newGroupStudentIds.map(sId => {
+                          const std = students.find(s => s.id === sId);
+                          const quota = getStudentQuota(sId);
+                          return (
+                            <span
+                              key={sId}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border ${
+                                quota.remainingSessions > 0
+                                  ? 'bg-white border-gray-200 text-[#29235D]'
+                                  : 'bg-rose-50 border-rose-300 text-rose-800'
+                              }`}
+                            >
+                              <span>{isRTL ? std?.nameArabic || std?.name : std?.name}</span>
+                              <span className="text-[10px] opacity-75 font-mono">({quota.remainingSessions}ح)</span>
+                              <button
+                                type="button"
+                                onClick={() => setNewGroupStudentIds(prev => prev.filter(id => id !== sId))}
+                                className="hover:text-red-500 text-gray-400 font-bold ml-1 cursor-pointer"
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Search within student list */}
+                    <input
+                      type="text"
+                      value={studentSearchInModal}
+                      onChange={e => setStudentSearchInModal(e.target.value)}
+                      placeholder={isRTL ? 'بحث بالاسم أو الكود لتحديد طلاب...' : 'Search student by name or code...'}
+                      className="w-full p-2 bg-white border border-gray-200 rounded-xl text-xs mb-2"
+                    />
+
+                    {/* Scrollable list of students with checkboxes */}
+                    <div className="max-h-40 overflow-y-auto space-y-1 pr-1">
+                      {students
+                        .filter(s => {
+                          if (!studentSearchInModal.trim()) return true;
+                          const q = studentSearchInModal.toLowerCase();
+                          return (
+                            s.name.toLowerCase().includes(q) ||
+                            (s.nameArabic && s.nameArabic.includes(q)) ||
+                            s.code.toLowerCase().includes(q)
+                          );
+                        })
+                        .map(s => {
+                          const isSelected = newGroupStudentIds.includes(s.id);
+                          const quota = getStudentQuota(s.id);
+                          return (
+                            <label
+                              key={s.id}
+                              className={`flex items-center justify-between p-2 rounded-xl text-xs cursor-pointer transition-all border ${
+                                isSelected
+                                  ? 'bg-white border-[#D3B673] shadow-xs'
+                                  : 'hover:bg-white/70 border-transparent'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={e => {
+                                    if (e.target.checked) {
+                                      setNewGroupStudentIds(prev => [...prev, s.id]);
+                                    } else {
+                                      setNewGroupStudentIds(prev => prev.filter(id => id !== s.id));
+                                    }
+                                  }}
+                                  className="rounded text-[#29235D] focus:ring-[#D3B673]"
+                                />
+                                <span className="font-bold text-[#29235D]">
+                                  {isRTL ? s.nameArabic || s.name : s.name}
+                                </span>
+                                <span className="text-[10px] font-mono text-gray-400">({s.code})</span>
+                              </div>
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  quota.remainingSessions > 0
+                                    ? 'bg-emerald-50 text-emerald-700'
+                                    : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                {quota.remainingSessions > 0
+                                  ? `${quota.remainingSessions} ${isRTL ? 'حصة متبقية' : 'sessions'}`
+                                  : (isRTL ? '⚠️ رصيد 0' : '0 quota')}
+                              </span>
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Title Inputs */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1147,43 +2005,325 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
               </div>
 
               {/* Date & Time Selectors */}
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block font-bold text-[#29235D] mb-1">
-                    {isRTL ? 'تاريخ الحصة' : 'Date'}
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={newDate}
-                    onChange={e => setNewDate(e.target.value)}
-                    className="w-full p-2 bg-[#FBF9F4] border border-gray-200 rounded-xl font-mono text-xs font-bold"
-                  />
+              <div className="bg-[#FAF7F0] p-3.5 rounded-2xl border border-[#D3B673]/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-[#29235D] font-bold text-xs sm:text-sm">
+                    <Clock className="w-4 h-4 text-[#D3B673]" />
+                    <span>{isRTL ? 'توقيت ومدة الدرس' : 'Class Timing & Duration'}</span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-full bg-[#29235D] text-[#D3B673] text-[11px] font-bold">
+                    {WEEK_DAYS.find(w => w.key === getDayKeyFromDate(newDate))?.[isRTL ? 'labelAr' : 'labelEn']}
+                  </div>
                 </div>
-                <div>
-                  <label className="block font-bold text-[#29235D] mb-1">
-                    {isRTL ? 'وقت البدء' : 'Start Time'}
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={newStartTime}
-                    onChange={e => setNewStartTime(e.target.value)}
-                    className="w-full p-2 bg-[#FBF9F4] border border-gray-200 rounded-xl font-mono text-xs font-bold"
-                  />
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#29235D] mb-1">
+                      {isRTL ? 'تاريخ الحصة *' : 'Class Date *'}
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={newDate}
+                      onChange={e => {
+                        setNewDate(e.target.value);
+                        const k = getDayKeyFromDate(e.target.value);
+                        if (!recurrenceSelectedDays.includes(k)) {
+                          setRecurrenceSelectedDays([k]);
+                        }
+                      }}
+                      className="w-full p-2 bg-white border border-gray-200 rounded-xl font-mono text-xs font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#29235D] mb-1">
+                      {isRTL ? 'وقت البدء *' : 'Start Time *'}
+                    </label>
+                    <input
+                      type="time"
+                      required
+                      value={newStartTime}
+                      onChange={e => handleStartTimeChange(e.target.value)}
+                      className="w-full p-2 bg-white border border-gray-200 rounded-xl font-mono text-xs font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#29235D] mb-1 flex items-center justify-between">
+                      <span>{isRTL ? 'وقت الانتهاء' : 'End Time'}</span>
+                      <span className="text-[10px] text-gray-500 font-normal">
+                        ({newDurationMinutes} {isRTL ? 'دقيقة' : 'min'})
+                      </span>
+                    </label>
+                    <input
+                      type="time"
+                      required
+                      value={newEndTime}
+                      onChange={e => handleEndTimeChange(e.target.value)}
+                      className="w-full p-2 bg-white border border-gray-200 rounded-xl font-mono text-xs font-bold"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block font-bold text-[#29235D] mb-1">
-                    {isRTL ? 'وقت الانتهاء' : 'End Time'}
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={newEndTime}
-                    onChange={e => setNewEndTime(e.target.value)}
-                    className="w-full p-2 bg-[#FBF9F4] border border-gray-200 rounded-xl font-mono text-xs font-bold"
-                  />
+
+                {/* Duration Presets Selector (30m up to 4 hours) */}
+                <div className="pt-2 border-t border-gray-200/60">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[11px] font-bold text-[#29235D] flex items-center gap-1.5">
+                      <Timer className="w-3.5 h-3.5 text-[#D3B673]" />
+                      <span>{isRTL ? 'اختر مدة الحصة (من نصف ساعة إلى 4 ساعات):' : 'Select Duration (30 min to 4 hrs):'}</span>
+                    </label>
+                    <span className="text-[11px] font-bold text-[#29235D] bg-white px-2 py-0.5 rounded-lg border border-gray-200">
+                      {DURATION_PRESETS.find(d => d.minutes === newDurationMinutes)?.[isRTL ? 'labelAr' : 'labelEn'] || `${newDurationMinutes} ${isRTL ? 'دقيقة' : 'min'}`}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
+                    {DURATION_PRESETS.map(preset => {
+                      const isSelected = newDurationMinutes === preset.minutes;
+                      return (
+                        <button
+                          key={preset.minutes}
+                          type="button"
+                          onClick={() => handleDurationSelect(preset.minutes)}
+                          className={`py-1.5 px-1 rounded-xl text-center text-xs font-bold transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#29235D] text-[#D3B673] shadow-sm ring-2 ring-[#D3B673]'
+                              : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-200'
+                          }`}
+                        >
+                          <div className="text-[11px] whitespace-nowrap">{isRTL ? preset.shortAr : preset.labelEn}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+              </div>
+
+              {/* ========================================================================= */}
+              {/* RECURRENCE & REPETITION SYSTEM (تكرار وجدولة الحصص تلقائياً)             */}
+              {/* ========================================================================= */}
+              <div className="bg-[#FAF7F0] p-3.5 rounded-2xl border border-[#D3B673]/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-[#29235D] font-bold text-xs sm:text-sm">
+                    <Repeat className="w-4 h-4 text-[#D3B673]" />
+                    <span>{isRTL ? 'تكرار الحصة وجدولتها تلقائياً' : 'Lesson Recurrence & Repetition'}</span>
+                  </div>
+                  <span className="text-[10px] text-gray-500 font-semibold">
+                    {isRTL ? 'لتوفير عناء الإضافة المتكررة' : 'Avoid repeated manual entries'}
+                  </span>
+                </div>
+
+                {/* Recurrence Mode Options */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {/* Mode 1: Single Session (No Repeat) */}
+                  <button
+                    type="button"
+                    onClick={() => setRecurrenceMode('ONCE')}
+                    className={`p-3 rounded-xl border text-right transition-all cursor-pointer ${
+                      recurrenceMode === 'ONCE'
+                        ? 'bg-[#29235D] text-white border-[#29235D] shadow-sm'
+                        : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`text-xs font-bold ${recurrenceMode === 'ONCE' ? 'text-[#D3B673]' : 'text-[#29235D]'}`}>
+                        {isRTL ? 'حصة واحدة فقط' : 'Once (Single Class)'}
+                      </span>
+                      {recurrenceMode === 'ONCE' && <Check className="w-3.5 h-3.5 text-[#D3B673]" />}
+                    </div>
+                    <p className={`text-[10px] leading-relaxed ${recurrenceMode === 'ONCE' ? 'text-gray-200' : 'text-gray-500'}`}>
+                      {isRTL ? 'لا يعاد (في هذا اليوم والتاريخ فقط)' : 'No repeat (single selected date)'}
+                    </p>
+                  </button>
+
+                  {/* Mode 2: Multi-Week Repetition */}
+                  <button
+                    type="button"
+                    onClick={() => setRecurrenceMode('WEEKS')}
+                    className={`p-3 rounded-xl border text-right transition-all cursor-pointer ${
+                      recurrenceMode === 'WEEKS'
+                        ? 'bg-[#29235D] text-white border-[#29235D] shadow-sm'
+                        : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`text-xs font-bold ${recurrenceMode === 'WEEKS' ? 'text-[#D3B673]' : 'text-[#29235D]'}`}>
+                        {isRTL ? 'تكرار لعدد محدد' : 'Specific Count'}
+                      </span>
+                      {recurrenceMode === 'WEEKS' && <Check className="w-3.5 h-3.5 text-[#D3B673]" />}
+                    </div>
+                    <p className={`text-[10px] leading-relaxed ${recurrenceMode === 'WEEKS' ? 'text-gray-200' : 'text-gray-500'}`}>
+                      {isRTL ? 'تكرار أسبوعي (شهر، فصل، أو مخصص)' : 'Weekly repeat for N weeks'}
+                    </p>
+                  </button>
+
+                  {/* Mode 3: Continuous / Infinite (Academic Year) */}
+                  <button
+                    type="button"
+                    onClick={() => setRecurrenceMode('INFINITE')}
+                    className={`p-3 rounded-xl border text-right transition-all cursor-pointer ${
+                      recurrenceMode === 'INFINITE'
+                        ? 'bg-[#29235D] text-white border-[#29235D] shadow-sm'
+                        : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`text-xs font-bold ${recurrenceMode === 'INFINITE' ? 'text-[#D3B673]' : 'text-[#29235D]'}`}>
+                        {isRTL ? 'تكرار مستمر بلا نهاية' : 'Ongoing / Infinite'}
+                      </span>
+                      {recurrenceMode === 'INFINITE' && <Check className="w-3.5 h-3.5 text-[#D3B673]" />}
+                    </div>
+                    <p className={`text-[10px] leading-relaxed ${recurrenceMode === 'INFINITE' ? 'text-gray-200' : 'text-gray-500'}`}>
+                      {isRTL ? 'على مدار العام كاملاً (52 أسبوعاً)' : 'Full academic year (52 weeks)'}
+                    </p>
+                  </button>
+                </div>
+
+                {/* Specific Weeks Configuration */}
+                {recurrenceMode === 'WEEKS' && (
+                  <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2.5">
+                    <label className="block text-[11px] font-bold text-[#29235D]">
+                      {isRTL ? 'حدد عدد مرات التكرار / الأسابيع:' : 'Select Repetition Count / Weeks:'}
+                    </label>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {RECURRENCE_COUNT_PRESETS.map(preset => {
+                        const isSelected = recurrenceWeeksCount === preset.count;
+                        return (
+                          <button
+                            key={preset.count}
+                            type="button"
+                            onClick={() => setRecurrenceWeeksCount(preset.count)}
+                            className={`p-2 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#29235D] text-[#D3B673] ring-2 ring-[#D3B673]'
+                                : 'bg-[#FAF7F0] hover:bg-gray-100 text-[#29235D] border border-gray-200'
+                            }`}
+                          >
+                            <div>{isRTL ? preset.labelAr : preset.labelEn}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <span className="text-[11px] font-bold text-gray-600">
+                        {isRTL ? 'أو أدخل عدداً مخصصاً:' : 'Or custom count:'}
+                      </span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="52"
+                        value={recurrenceWeeksCount}
+                        onChange={e => setRecurrenceWeeksCount(Math.max(1, Math.min(52, parseInt(e.target.value, 10) || 1)))}
+                        className="w-20 p-1.5 bg-[#FAF7F0] border border-gray-200 rounded-lg text-center font-bold text-xs"
+                      />
+                      <span className="text-xs text-gray-500 font-bold">
+                        {isRTL ? 'حصة / أسبوع' : 'classes / weeks'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Weekdays Selector (if recurring) */}
+                {recurrenceMode !== 'ONCE' && (
+                  <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2">
+                    <label className="block text-[11px] font-bold text-[#29235D]">
+                      {isRTL ? 'أيام التكرار في الأسبوع (محدد تلقائياً على يوم الحصة):' : 'Repeat on weekdays:'}
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {WEEK_DAYS.map(day => {
+                        const isChecked = recurrenceSelectedDays.includes(day.key);
+                        return (
+                          <button
+                            key={day.key}
+                            type="button"
+                            onClick={() => {
+                              if (isChecked) {
+                                if (recurrenceSelectedDays.length > 1) {
+                                  setRecurrenceSelectedDays(prev => prev.filter(d => d !== day.key));
+                                }
+                              } else {
+                                setRecurrenceSelectedDays(prev => [...prev, day.key]);
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                              isChecked
+                                ? 'bg-[#29235D] text-[#D3B673] shadow-sm'
+                                : 'bg-[#FAF7F0] text-gray-600 border border-gray-200 hover:bg-gray-100'
+                            }`}
+                          >
+                            {isChecked && <Check className="w-3 h-3 text-[#D3B673]" />}
+                            <span>{isRTL ? day.labelAr : day.shortEn}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Live Recurrence Generation Summary Card */}
+                {recurrenceMode !== 'ONCE' && (
+                  <div className="p-3 bg-gradient-to-r from-[#29235D] to-[#1D1845] rounded-xl text-white space-y-2 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CalendarRange className="w-4 h-4 text-[#D3B673]" />
+                        <span className="font-bold text-xs text-[#D3B673]">
+                          {isRTL ? 'ملخص الجدولة والتكرار التلقائي' : 'Auto-Schedule Summary'}
+                        </span>
+                      </div>
+                      <span className="px-2 py-0.5 bg-[#D3B673] text-[#29235D] text-[11px] font-black rounded-full">
+                        {generatedRecurringDates.length} {isRTL ? 'حصة ستُضاف للتقويم' : 'classes to add'}
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-gray-200 space-y-1 pt-1 border-t border-white/10">
+                      <div className="flex items-center justify-between">
+                        <span>{isRTL ? 'الفترة الزمنية:' : 'Period:'}</span>
+                        <span className="font-mono font-bold text-white">
+                          {generatedRecurringDates[0]} ➔ {generatedRecurringDates[generatedRecurringDates.length - 1]}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>{isRTL ? 'التوقيت والمدة:' : 'Time & Duration:'}</span>
+                        <span className="font-mono font-bold text-[#D3B673]">
+                          {newStartTime} - {newEndTime} ({newDurationMinutes} {isRTL ? 'دقيقة' : 'min'})
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Collapsible Date Preview */}
+                    <div className="pt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setShowRecurrencePreview(!showRecurrencePreview)}
+                        className="text-[11px] font-bold text-[#D3B673] hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Info className="w-3 h-3" />
+                        <span>
+                          {showRecurrencePreview
+                            ? (isRTL ? 'إخفاء قائمة تواريخ الحصص' : 'Hide class dates list')
+                            : (isRTL ? `معاينة تواريخ الـ ${generatedRecurringDates.length} حصة بالتفصيل` : `Preview all ${generatedRecurringDates.length} dates`)}
+                        </span>
+                      </button>
+
+                      {showRecurrencePreview && (
+                        <div className="mt-2 max-h-36 overflow-y-auto bg-black/30 p-2 rounded-lg space-y-1 text-[10px] font-mono border border-white/10">
+                          {generatedRecurringDates.map((d, i) => (
+                            <div key={d} className="flex items-center justify-between py-0.5 px-1 rounded hover:bg-white/5">
+                              <span className="text-gray-300">
+                                {isRTL ? `حصة ${i + 1}:` : `Class ${i + 1}:`}
+                              </span>
+                              <span className="text-[#D3B673] font-bold">{d}</span>
+                              <span className="text-gray-400">{newStartTime} - {newEndTime}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Zoom Meeting Link */}
@@ -1215,7 +2355,11 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
                   className="px-6 py-2.5 rounded-2xl bg-[#29235D] hover:bg-[#1D1845] text-[#D3B673] font-bold flex items-center gap-2 shadow-md cursor-pointer"
                 >
                   <Check className="w-4 h-4" />
-                  <span>{isRTL ? 'تأكيد وحفظ في الجدول' : 'Save to Schedule'}</span>
+                  <span>
+                    {recurrenceMode !== 'ONCE' && generatedRecurringDates.length > 1
+                      ? (isRTL ? `تأكيد وحفظ (${generatedRecurringDates.length} حصة)` : `Save ${generatedRecurringDates.length} Classes`)
+                      : (isRTL ? 'تأكيد وحفظ في الجدول' : 'Save to Schedule')}
+                  </span>
                 </button>
               </div>
 
