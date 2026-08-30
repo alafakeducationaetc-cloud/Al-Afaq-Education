@@ -75,6 +75,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
     addSubscription,
     updateSubscription,
     extendSubscription,
+    rechargeStudentSessions,
+    getStudentQuota,
     addClassSession,
     updateSettings,
   } = useApp();
@@ -678,10 +680,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
                           {sub.status}
                         </span>
                       </td>
-                      <td className="p-3 text-right rtl:text-left">
+                      <td className="p-3 text-right rtl:text-left flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => {
+                            rechargeStudentSessions(sub.studentId, 5, 30, 'Admin 5-Session Top-Up');
+                            alert(isRTL ? 'تم شحن 5 حصص وتمديد الصلاحية بنجاح!' : 'Successfully recharged 5 sessions & extended validity!');
+                          }}
+                          className="px-2.5 py-1 bg-[#29235D] hover:bg-[#1D1845] text-[#D3B673] font-bold rounded-lg text-[10px] shadow-xs cursor-pointer"
+                        >
+                          + 5 {isRTL ? 'حصص ⚡' : 'Lessons ⚡'}
+                        </button>
                         <button
                           onClick={() => setShowExtendSubId(sub.id)}
-                          className="px-3 py-1 bg-[#D3B673] hover:bg-[#E8D5A3] text-[#29235D] font-bold rounded-lg text-[10px] shadow-xs"
+                          className="px-3 py-1 bg-[#D3B673] hover:bg-[#E8D5A3] text-[#29235D] font-bold rounded-lg text-[10px] shadow-xs cursor-pointer"
                         >
                           + Extend Validity
                         </button>

@@ -6,6 +6,7 @@ import {
   TeacherPermissions,
   Program,
   Subscription,
+  SubscriptionStatus,
   ClassSession,
   AttendanceRecord,
   Activity,
@@ -99,6 +100,15 @@ interface AppContextType {
   addSubscription: (sub: Omit<Subscription, 'id'>) => void;
   updateSubscription: (id: string, updates: Partial<Subscription>) => void;
   extendSubscription: (id: string, additionalDays: number, additionalSessions: number) => void;
+  rechargeStudentSessions: (studentId: string, additionalSessions: number, additionalDays?: number, notes?: string) => void;
+  getStudentQuota: (studentId: string) => {
+    remainingSessions: number;
+    totalSessions: number;
+    attendedSessions: number;
+    isExpired: boolean;
+    isEligible: boolean;
+    status: string;
+  };
   
   // Class / Schedule operations
   addClassSession: (cls: Omit<ClassSession, 'id'>) => void;
@@ -865,10 +875,114 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     updateSubscription(id, updated);
   };
 
+  // ⚡ Direct Student Sessions Recharge & Quota Unlock
+  const rechargeStudentSessions = (
+    studentId: string,
+    additionalSessions: number,
+    additionalDays: number = 30,
+    notes?: string
+  ) => {
+    const student = students.find(s => s.id === studentId);
+    const existingSub = subscriptions.find(s => s.studentId === studentId);
+
+    if (existingSub) {
+      const currentEnd = new Date(existingSub.endDate);
+      const now = new Date();
+      const baseDate = currentEnd > now ? currentEnd : now;
+      baseDate.setDate(baseDate.getDate() + additionalDays);
+      const newEndDate = baseDate.toISOString().split('T')[0];
+
+      const updated: Subscription = {
+        ...existingSub,
+        endDate: newEndDate,
+        totalSessions: (existingSub.totalSessions || 0) + additionalSessions,
+        remainingSessions: Math.max(0, existingSub.remainingSessions || 0) + additionalSessions,
+        status: 'ACTIVE',
+        paymentStatus: 'PAID',
+        notes: notes || existingSub.notes,
+      };
+
+      setSubscriptions(prev => prev.map(s => s.id === existingSub.id ? updated : s));
+      saveCloudDoc(CLOUD_COLLECTIONS.SUBSCRIPTIONS, existingSub.id, updated);
+    } else if (student) {
+      const today = new Date();
+      const end = new Date();
+      end.setDate(today.getDate() + additionalDays);
+
+      const newSubId = `sub-${Date.now()}`;
+      const newSub: Subscription = {
+        id: newSubId,
+        studentId,
+        programId: student.enrolledProgramIds[0] || programs[0]?.id || 'prg-01',
+        teacherId: student.assignedTeacherIds[0] || teachers[0]?.id || 'tea-01',
+        startDate: today.toISOString().split('T')[0],
+        endDate: end.toISOString().split('T')[0],
+        totalSessions: additionalSessions,
+        attendedSessions: 0,
+        remainingSessions: additionalSessions,
+        status: 'ACTIVE',
+        paymentStatus: 'PAID',
+        amount: 350,
+        notes: notes || 'Direct Lesson Balance Recharge',
+      };
+
+      setSubscriptions(prev => [newSub, ...prev]);
+      saveCloudDoc(CLOUD_COLLECTIONS.SUBSCRIPTIONS, newSubId, newSub);
+    }
+
+    // Add notification for the student
+    const notifId = `notif-charge-${Date.now()}`;
+    const newNotif = {
+      id: notifId,
+      userId: studentId,
+      title: '🎉 تم شحن باقة الحصص بنجاح',
+      message: `تمت إضافة ${additionalSessions} حصص إلى رصيد حسابك التعليمي. يمكنك الآن الانضمام للحصص والسبورة التفاعلية.`,
+      type: 'PAYMENT' as const,
+      date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      read: false,
+    };
+    setNotifications(prev => [newNotif, ...prev]);
+    saveCloudDoc(CLOUD_COLLECTIONS.NOTIFICATIONS, notifId, newNotif);
+  };
+
+  // Helper to query student quota status
+  const getStudentQuota = (studentId: string) => {
+    const sub = subscriptions.find(s => s.studentId === studentId);
+    if (!sub) {
+      return {
+        remainingSessions: 0,
+        totalSessions: 0,
+        attendedSessions: 0,
+        isExpired: true,
+        isEligible: false,
+        status: 'NO_SUBSCRIPTION' as const,
+      };
+    }
+    const isExpired = sub.status === 'EXPIRED' || sub.remainingSessions <= 0;
+    return {
+      remainingSessions: sub.remainingSessions,
+      totalSessions: sub.totalSessions,
+      attendedSessions: sub.attendedSessions,
+      isExpired,
+      isEligible: !isExpired && sub.remainingSessions > 0,
+      status: sub.status,
+    };
+  };
+
   // Class CRUD
   const addClassSession = (data: Omit<ClassSession, 'id'>) => {
     const id = `cls-${Date.now()}`;
-    const newCls: ClassSession = { ...data, id };
+    // Check if enrolled students have remaining quota
+    const hasAnyEligibleStudent = data.studentIds.some(sId => {
+      const quota = getStudentQuota(sId);
+      return quota.isEligible;
+    });
+
+    const newCls: ClassSession = {
+      ...data,
+      id,
+      isLockedDueToQuota: !hasAnyEligibleStudent,
+    };
     setClasses(prev => [newCls, ...prev]);
     saveCloudDoc(CLOUD_COLLECTIONS.CLASSES, id, newCls);
   };
@@ -892,12 +1006,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     deleteCloudDoc(CLOUD_COLLECTIONS.CLASSES, id);
   };
 
-  // Attendance
+  // Attendance (with automatic session quota decrement & auto-lock upon expiration)
   const markAttendance = (record: Omit<AttendanceRecord, 'id' | 'markedAt'>) => {
     const id = `att-${Date.now()}`;
     const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
     const existingIndex = attendance.findIndex(a => a.sessionId === record.sessionId && a.studentId === record.studentId);
-    
+    const prevRecord = existingIndex >= 0 ? attendance[existingIndex] : null;
+
     if (existingIndex >= 0) {
       const existing = attendance[existingIndex];
       const updatedRecord = { ...existing, status: record.status, notes: record.notes, markedAt: now };
@@ -915,6 +1030,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setAttendance(prev => [newRecord, ...prev]);
       saveCloudDoc(CLOUD_COLLECTIONS.ATTENDANCE, id, newRecord);
+    }
+
+    // Auto-update student subscription sessions balance when attendance is confirmed
+    const wasAttended = prevRecord && (prevRecord.status === 'PRESENT' || prevRecord.status === 'LATE');
+    const isNowAttended = record.status === 'PRESENT' || record.status === 'LATE';
+
+    if (!wasAttended && isNowAttended) {
+      const sub = subscriptions.find(s => s.studentId === record.studentId);
+      if (sub && sub.remainingSessions > 0) {
+        const newRemaining = Math.max(0, sub.remainingSessions - 1);
+        const newAttended = sub.attendedSessions + 1;
+        const newStatus: SubscriptionStatus = newRemaining === 0 ? 'EXPIRED' : sub.status;
+        const updatedSub: Subscription = {
+          ...sub,
+          remainingSessions: newRemaining,
+          attendedSessions: newAttended,
+          status: newStatus,
+        };
+        setSubscriptions(prev => prev.map(s => s.id === sub.id ? updatedSub : s));
+        saveCloudDoc(CLOUD_COLLECTIONS.SUBSCRIPTIONS, sub.id, updatedSub);
+
+        if (newRemaining === 0) {
+          const quotaWarningNotif = {
+            id: `notif-exhaust-${Date.now()}`,
+            userId: record.studentId,
+            title: '⚠️ انتهى رصيد حصص الباقة التعليمية',
+            message: 'لقد أتممت جميع الحصص المحجوزة في باقتك (0 حصص متبقية). يرجى شحن الرصيد لتفعيل الحصص القادمة والسبورة.',
+            type: 'SYSTEM' as const,
+            date: now,
+            read: false,
+          };
+          setNotifications(prev => [quotaWarningNotif, ...prev]);
+          saveCloudDoc(CLOUD_COLLECTIONS.NOTIFICATIONS, quotaWarningNotif.id, quotaWarningNotif);
+        }
+      }
     }
   };
 
@@ -1212,6 +1362,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addSubscription,
         updateSubscription,
         extendSubscription,
+        rechargeStudentSessions,
+        getStudentQuota,
         addClassSession,
         updateClassSession,
         deleteClassSession,

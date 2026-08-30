@@ -75,11 +75,13 @@ export interface DrawAction {
 
 export const InteractiveWhiteboard: React.FC = () => {
   const { t, isRTL } = useI18n();
-  const { currentUser, hasTeacherPermission } = useApp();
+  const { currentUser, hasTeacherPermission, getStudentQuota } = useApp();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const canUseWhiteboard = hasTeacherPermission('canAccessWhiteboard');
+  const studentQuota = currentUser?.role === 'STUDENT' ? getStudentQuota(currentUser.id) : null;
+  const isStudentQuotaDepleted = studentQuota ? studentQuota.remainingSessions <= 0 : false;
 
   // Board Theme
   const [boardTheme, setBoardTheme] = useState<BoardTheme>('white');
@@ -1121,6 +1123,40 @@ export const InteractiveWhiteboard: React.FC = () => {
             ? 'تم تقييد الوصول إلى السبورة التفاعلية لحسابك من قِبل المشرف العام. يُرجى مراجعة إدارة المنصة لتفعيل هذه الميزة.'
             : 'Access to the interactive whiteboard has been restricted for your teacher profile by the General Supervisor.'}
         </p>
+      </div>
+    );
+  }
+
+  if (isStudentQuotaDepleted) {
+    return (
+      <div className="bg-white rounded-3xl p-10 sm:p-14 text-center border border-rose-200 shadow-xl space-y-5 max-w-2xl mx-auto">
+        <div className="w-20 h-20 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto border border-rose-200 shadow-inner">
+          <AlertCircle className="w-10 h-10" />
+        </div>
+        <div className="space-y-2">
+          <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-rose-100 text-rose-800 border border-rose-300">
+            {isRTL ? '⚠️ رصيد الباقة منتهي (0 حصص متبقية)' : '⚠️ 0 Sessions Remaining'}
+          </span>
+          <h3 className="text-2xl font-black text-[#29235D] font-serif">
+            {isRTL ? 'السبورة التفاعلية متوقفة مؤقتاً' : 'Whiteboard Temporarily Locked'}
+          </h3>
+          <p className="text-sm text-gray-600 leading-relaxed max-w-lg mx-auto">
+            {isRTL
+              ? 'عزيزي المتدرب، لقد أتممت جميع الحصص المشحونة في باقتك الحالية. لفتح السبورة التفاعلية واستئناف الحصص المباشرة، يرجى طلب شحن وتجديد رصيدك.'
+              : 'Dear student, your prepaid lessons balance has reached 0. To unlock the interactive whiteboard and resume live sessions, please recharge your session quota.'}
+          </p>
+        </div>
+        <div className="pt-2 flex justify-center">
+          <a
+            href="https://wa.me/201021430489?text=السلام%20عليكم%20أريد%20شحن%20وتجديد%20باقة%20الحصص%20في%20منصة%20آفاق"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#29235D] to-[#1D1845] text-[#D3B673] hover:text-white font-bold text-sm flex items-center gap-2.5 shadow-lg border border-[#D3B673]/40 transition-all cursor-pointer"
+          >
+            <span>💬</span>
+            <span>{isRTL ? 'طلب شحن وتجديد الباقة عبر واتساب' : 'Request Recharge via WhatsApp'}</span>
+          </a>
+        </div>
       </div>
     );
   }

@@ -29,7 +29,7 @@ interface TeacherDashboardProps {
 }
 
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onNavigateTab }) => {
-  const { currentUser, students, programs, classes, attendance, markAttendance, hasTeacherPermission } = useApp();
+  const { currentUser, students, programs, classes, attendance, markAttendance, hasTeacherPermission, getStudentQuota, rechargeStudentSessions } = useApp();
   const { t, isRTL } = useI18n();
 
   const teacher = currentUser as TeacherProfile;
@@ -369,34 +369,64 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onNavigateTa
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {teacherStudents.map(std => (
-            <div
-              key={std.id}
-              className="p-4 rounded-2xl border border-gray-100 bg-[#FBF9F4] hover:border-[#D3B673]/60 transition-all flex items-start justify-between gap-3"
-            >
-              <div className="flex items-start gap-3">
-                <img
-                  src={std.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
-                  alt={std.name}
-                  className="w-12 h-12 rounded-xl object-cover border border-[#D3B673]"
-                />
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-bold text-[#29235D] font-serif">{std.name}</h4>
-                    <span className="text-[10px] font-mono text-gray-500 font-bold">{std.code}</span>
+          {teacherStudents.map(std => {
+            const quota = getStudentQuota(std.id);
+            const isDepleted = quota.remainingSessions <= 0 || quota.isExpired;
+
+            return (
+              <div
+                key={std.id}
+                className={`p-4 rounded-2xl border transition-all flex items-start justify-between gap-3 ${
+                  isDepleted
+                    ? 'bg-rose-50/70 border-rose-200'
+                    : 'bg-[#FBF9F4] border-gray-100 hover:border-[#D3B673]/60'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <img
+                    src={std.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                    alt={std.name}
+                    className="w-12 h-12 rounded-xl object-cover border border-[#D3B673]"
+                  />
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-[#29235D] font-serif">{isRTL ? std.nameArabic || std.name : std.name}</h4>
+                      <span className="text-[10px] font-mono text-gray-500 font-bold">{std.code}</span>
+                    </div>
+                    
+                    {/* Quota Indicator */}
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      {isDepleted ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-rose-200 text-rose-900 border border-rose-300">
+                          {isRTL ? '⚠️ رصيد منتهي (0 حصة)' : '⚠️ 0 Sessions (Depleted)'}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                          {isRTL ? `متبقي ${quota.remainingSessions} حصص` : `${quota.remainingSessions} sessions left`}
+                        </span>
+                      )}
+                    </div>
+
+                    {std.notes && (
+                      <p className="text-[11px] text-[#786F9A] italic line-clamp-1">"{std.notes}"</p>
+                    )}
                   </div>
-                  <p className="text-xs text-gray-500">Native: {std.nativeLanguage || 'English'}</p>
-                  {std.notes && (
-                    <p className="text-[11px] text-[#786F9A] italic line-clamp-1">"{std.notes}"</p>
-                  )}
+                </div>
+
+                <div className="flex flex-col items-end gap-1.5">
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                    {std.status}
+                  </span>
+                  <button
+                    onClick={() => onNavigateTab('classes')}
+                    className="text-[10px] font-bold text-[#29235D] hover:text-[#D3B673] underline"
+                  >
+                    {isRTL ? 'جدول الحصص' : 'Schedule'}
+                  </button>
                 </div>
               </div>
-
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                {std.status}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

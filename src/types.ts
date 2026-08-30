@@ -168,6 +168,7 @@ export interface ClassSession {
   topic?: string;
   lessonId?: string;
   notes?: string;
+  isLockedDueToQuota?: boolean;
 }
 
 export interface AttendanceRecord {
