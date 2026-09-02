@@ -12,16 +12,16 @@ export interface Translations {
 export const translations: Translations = {
   // Brand & Header
   platformName: {
-    en: 'AITEC Platform',
-    ar: 'منصة الآفاق الدولية للتدريب والاستشارات التربوية',
+    en: 'Al-Afak International',
+    ar: 'منصة الآفاق الدولية',
   },
   platformSubname: {
-    en: 'Al-Afak International For Training And Educational Consultants',
-    ar: 'الآفاق الدولية للتدريب والاستشارات التربوية والتعليم التفاعلي',
+    en: 'Al-Afak International',
+    ar: 'منصة الآفاق الدولية',
   },
   tagline: {
-    en: 'Excellence in Arabic Language, Quran & Tajweed Education',
-    ar: 'الريادة والتميز في تعليم اللغة العربية لغير الناطقين بها والقرآن الكريم والتجويد',
+    en: 'Al-Afak International',
+    ar: 'منصة الآفاق الدولية للتعليم التفاعلي والقرآن الكريم',
   },
 
   // Auth & Roles
@@ -78,6 +78,7 @@ export const translations: Translations = {
   zoomMeetings: { en: 'Zoom Meetings', ar: 'جلسات زووم المباشرة' },
   permissions: { en: 'Permissions & Roles', ar: 'الصلاحيات والأدوار' },
   reports: { en: 'Analytics & Reports', ar: 'التقارير والإحصائيات' },
+  certificates: { en: 'Certificates & Honors', ar: 'الشهادات والاعتمادات' },
   settings: { en: 'Platform Settings', ar: 'إعدادات المنصة' },
   notifications: { en: 'Notifications', ar: 'الإشعارات' },
   profile: { en: 'Profile', ar: 'الملف الشخصي' },

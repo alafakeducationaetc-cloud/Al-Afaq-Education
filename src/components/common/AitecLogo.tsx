@@ -29,8 +29,8 @@ export const AitecLogo: React.FC<AitecLogoProps> = ({
 
   const activeLogoUrl = customLogoUrl || platformSettings?.logoUrl;
   const displayMode = platformSettings?.logoDisplayMode || (activeLogoUrl ? 'custom' : 'emblem');
-  const customEnTitle = platformSettings?.logoTextEn || platformSettings?.platformName || 'AITEC';
-  const customArTitle = platformSettings?.logoTextAr || platformSettings?.platformNameArabic || 'الآفاق الدولية للتدريب والاستشارات التربوية';
+  const customEnTitle = platformSettings?.logoTextEn || platformSettings?.platformName || 'Al-Afak International';
+  const customArTitle = platformSettings?.logoTextAr || platformSettings?.platformNameArabic || 'منصة الآفاق الدولية';
   // Dimensions
   const emblemSizes = {
     xs: 'w-8 h-8',
@@ -107,16 +107,16 @@ export const AitecLogo: React.FC<AitecLogoProps> = ({
 
         {/* Outer Circular Ring Text */}
         {/* Top English */}
-        <text fill="#FFFFFF" fontSize="10.8" fontWeight="700" letterSpacing="0.8" fontFamily="'Arial', sans-serif">
+        <text fill="#FFFFFF" fontSize="11.5" fontWeight="700" letterSpacing="1.2" fontFamily="'Arial', sans-serif">
           <textPath href="#topTextPath" startOffset="50%" textAnchor="middle">
-            AL-Afak International For Training And Educational Consultants
+            Al-Afak International
           </textPath>
         </text>
 
         {/* Bottom Arabic */}
-        <text fill="url(#aitecGoldGrad)" fontSize="12.5" fontWeight="800" fontFamily="'Cairo', 'Amiri', sans-serif">
+        <text fill="url(#aitecGoldGrad)" fontSize="13" fontWeight="800" fontFamily="'Cairo', 'Amiri', sans-serif">
           <textPath href="#bottomTextPath" startOffset="50%" textAnchor="middle">
-            الآفاق الدولية للتدريب والاستشارات التربوية
+            منصة الآفاق الدولية
           </textPath>
         </text>
 
@@ -215,10 +215,10 @@ export const AitecLogo: React.FC<AitecLogoProps> = ({
           />
         </g>
 
-        {/* Inner Curved Arabic Label: الآفاق الدولية للتدريب والاستشارات */}
-        <text fill="#B38F43" fontSize="8" fontWeight="bold" fontFamily="'Cairo', sans-serif">
+        {/* Inner Curved Arabic Label: منصة الآفاق الدولية */}
+        <text fill="#B38F43" fontSize="8.5" fontWeight="bold" fontFamily="'Cairo', sans-serif">
           <textPath href="#innerArabicPath" startOffset="50%" textAnchor="middle">
-            الآفاق الدولية للتدريب والاستشارات التربوية
+            منصة الآفاق الدولية
           </textPath>
         </text>
       </svg>
@@ -257,24 +257,15 @@ export const AitecLogo: React.FC<AitecLogoProps> = ({
       <div className="flex flex-col text-left rtl:text-right">
         {/* Brand Main Title Lockup */}
         <div className="flex items-center gap-2">
-          <span className={`${textSizes[size].main} ${primaryTextColor} font-serif tracking-wider leading-tight`}>
-            {customEnTitle}
-          </span>
-          <span className="px-2 py-0.5 rounded-md bg-[#D3B673]/15 text-[#B89955] border border-[#D3B673]/40 text-xs font-extrabold tracking-wide">
-            الآفـاق الدوليـة
+          <span className={`${textSizes[size].main} ${primaryTextColor} font-bold tracking-normal leading-tight font-serif`}>
+            منصة الآفاق الدولية
           </span>
         </div>
 
-        {/* Subtitles & Descriptions */}
-        <span className={`${textSizes[size].sub} font-semibold ${subTextColor} tracking-normal line-clamp-1`}>
-          Al-Afak International For Training And Educational Consultants
+        {/* English Brand Subtitle */}
+        <span className={`${textSizes[size].sub} font-semibold ${subTextColor} tracking-wide`}>
+          Al-Afak International
         </span>
-
-        {showArabicSub && (
-          <span className="text-[10px] sm:text-[11px] font-bold text-[#8C6826] leading-tight mt-0.5 line-clamp-1">
-            {customArTitle}
-          </span>
-        )}
       </div>
     </div>
   );

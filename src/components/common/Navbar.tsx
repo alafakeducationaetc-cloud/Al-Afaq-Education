@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useI18n } from '../../lib/i18n';
 import { Logo } from './Logo';
 import { UserAvatarEditModal } from '../admin/UserAvatarEditModal';
+import { BroadcastNotificationModal } from '../admin/BroadcastNotificationModal';
 import {
   Bell,
   Globe,
@@ -23,6 +24,8 @@ import {
   Check,
   Share2,
   MessageCircle,
+  Send,
+  Plus,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -46,9 +49,32 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateTab, activeTab }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAvatarEditModal, setShowAvatarEditModal] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const unreadNotifications = Array.isArray(notifications) ? notifications.filter(n => !n.read) : [];
+  const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN';
+
+  // Strict targeted notification filtering by user role and specific user ID
+  const userNotifications = useMemo(() => {
+    if (!currentUser || !Array.isArray(notifications)) return [];
+    const role = currentUser.role;
+    return notifications.filter(n => {
+      // If targeted individually to a specific user
+      if (n.userId) {
+        return n.userId === currentUser.id;
+      }
+      // If broadcast with target audience
+      if (n.targetAudience === 'ALL') return true;
+      if (n.targetAudience === 'STUDENTS') return role === 'STUDENT';
+      if (n.targetAudience === 'TEACHERS') return role === 'TEACHER';
+      // Admin sees all broadcast notifications and administrative alerts
+      if (role === 'SUPER_ADMIN' || role === 'ADMIN') return true;
+      
+      return false;
+    });
+  }, [notifications, currentUser]);
+
+  const unreadNotifications = userNotifications.filter(n => !n.read);
   
   const unreadMessagesCount = currentUser
     ? messages.filter(
@@ -296,15 +322,30 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateTab, activeTab }) => {
                       <Bell className="w-4 h-4 text-[#D3B673]" />
                       <span className="font-bold text-[#29235D] night:text-[#E8D5A3] text-sm">{t('notifications')}</span>
                     </div>
-                    {unreadNotifications.length > 0 && (
-                      <span className="text-[11px] font-semibold text-[#D3B673] bg-[#29235D] night:bg-[#2F2966] px-2 py-0.5 rounded-full">
-                        {unreadNotifications.length} {isRTL ? 'جديد' : 'new'}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {isAdmin && (
+                        <button
+                          onClick={() => {
+                            setShowNotifications(false);
+                            setShowBroadcastModal(true);
+                          }}
+                          className="px-2 py-1 rounded-lg bg-[#29235D] hover:bg-[#1D1845] text-[#D3B673] text-[10px] font-bold flex items-center gap-1 border border-[#D3B673]/40 transition-all cursor-pointer"
+                          title={isRTL ? 'إرسال وبث إشعار عام' : 'Broadcast notification'}
+                        >
+                          <Send className="w-3 h-3" />
+                          <span>{isRTL ? 'بث إشعار' : 'Broadcast'}</span>
+                        </button>
+                      )}
+                      {unreadNotifications.length > 0 && (
+                        <span className="text-[11px] font-semibold text-[#D3B673] bg-[#29235D] night:bg-[#2F2966] px-2 py-0.5 rounded-full">
+                          {unreadNotifications.length} {isRTL ? 'جديد' : 'new'}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="mt-3 space-y-2.5 max-h-72 overflow-y-auto">
-                    {(!notifications || notifications.length === 0) ? (
+                    {userNotifications.length === 0 ? (
                       <div className="text-center py-6">
                         <Bell className="w-8 h-8 text-gray-300 night:text-gray-600 mx-auto mb-2 opacity-50" />
                         <p className="text-xs text-gray-500 night:text-gray-400 font-medium">
@@ -312,7 +353,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateTab, activeTab }) => {
                         </p>
                       </div>
                     ) : (
-                      notifications.map(notif => (
+                      userNotifications.map(notif => (
                         <div
                           key={notif.id}
                           onClick={() => {
@@ -468,6 +509,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateTab, activeTab }) => {
         user={currentUser}
         isOpen={showAvatarEditModal}
         onClose={() => setShowAvatarEditModal(false)}
+      />
+
+      {/* Broadcast Notification Modal */}
+      <BroadcastNotificationModal
+        isOpen={showBroadcastModal}
+        onClose={() => setShowBroadcastModal(false)}
       />
     </header>
   );

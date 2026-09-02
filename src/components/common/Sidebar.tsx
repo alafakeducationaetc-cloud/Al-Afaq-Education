@@ -19,6 +19,7 @@ import {
   UserCheck,
   FileText,
   MessageCircle,
+  Award,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -42,6 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
   const getStudentItems = (): NavItem[] => [
     { id: 'dashboard', label: t('dashboard'), icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'messages', label: isRTL ? 'الرسائل والمحادثات' : 'Messages & Chat', icon: <MessageCircle className="w-4 h-4" /> },
+    { id: 'certificates', label: isRTL ? 'شهاداتي المعتمدة' : 'My Certificates', icon: <Award className="w-4 h-4" /> },
     { id: 'programs', label: t('myPrograms'), icon: <BookOpen className="w-4 h-4" /> },
     { id: 'classes', label: t('myClasses'), icon: <Calendar className="w-4 h-4" />, badge: 'Next Class' },
     { id: 'attendance', label: t('attendance'), icon: <ClipboardCheck className="w-4 h-4" /> },
@@ -54,6 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
   const getTeacherItems = (): NavItem[] => [
     { id: 'dashboard', label: t('dashboard'), icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'messages', label: isRTL ? 'الرسائل والحلقات' : 'Messages & Circles', icon: <MessageCircle className="w-4 h-4" /> },
+    { id: 'certificates', label: isRTL ? 'الشهادات والاعتمادات' : 'Certificates & Honors', icon: <Award className="w-4 h-4" /> },
     { id: 'students', label: t('myStudents'), icon: <GraduationCap className="w-4 h-4" /> },
     { id: 'programs', label: t('myPrograms'), icon: <BookOpen className="w-4 h-4" /> },
     { id: 'classes', label: t('myClasses'), icon: <Calendar className="w-4 h-4" /> },
@@ -68,6 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
   const getAdminItems = (): NavItem[] => [
     { id: 'dashboard', label: t('dashboard'), icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'messages', label: isRTL ? 'مراقبة المحادثات والرسائل' : 'Live Chat Monitor', icon: <MessageCircle className="w-4 h-4" />, badge: isRTL ? 'رقابة خفية' : 'Oversight' },
+    { id: 'certificates', label: isRTL ? 'الشهادات والاعتمادات' : 'Certificates & Honors', icon: <Award className="w-4 h-4" />, badge: isRTL ? 'توثيق وتوقيع' : 'Signed' },
     { id: 'students', label: t('allStudents'), icon: <GraduationCap className="w-4 h-4" /> },
     { id: 'teachers', label: t('allTeachers'), icon: <Users className="w-4 h-4" /> },
     { id: 'programs', label: t('programs'), icon: <BookOpen className="w-4 h-4" /> },

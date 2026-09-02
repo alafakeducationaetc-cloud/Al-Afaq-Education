@@ -113,6 +113,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onNavigateTa
           {/* Quick Teaching Actions with Granular Permission Guards */}
           <div className="flex flex-wrap items-center gap-2.5">
             <button
+              onClick={() => onNavigateTab('certificates')}
+              className="px-4 py-2.5 rounded-2xl bg-[#D3B673] hover:bg-[#E8D5A3] text-[#29235D] font-bold text-xs sm:text-sm flex items-center gap-2 transition-all shadow-md cursor-pointer"
+            >
+              <Award className="w-4 h-4" />
+              <span>{isRTL ? 'الشهادات والاعتمادات' : 'Certificates & Signatures'}</span>
+            </button>
+
+            <button
               onClick={() => onNavigateTab('messages')}
               className="px-4 py-2.5 rounded-2xl bg-white/15 hover:bg-white/25 text-[#E8D5A3] font-bold text-xs sm:text-sm flex items-center gap-2 border border-[#D3B673]/40 transition-all cursor-pointer shadow-xs"
             >
@@ -123,7 +131,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onNavigateTa
             {perms.canAccessWhiteboard ? (
               <button
                 onClick={() => onNavigateTab('whiteboard')}
-                className="px-4 py-2.5 rounded-2xl bg-[#D3B673] hover:bg-[#E8D5A3] text-[#29235D] font-bold text-xs sm:text-sm flex items-center gap-2 transition-all shadow-md cursor-pointer"
+                className="px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-[#E8D5A3] font-bold text-xs sm:text-sm flex items-center gap-2 border border-[#D3B673]/40 transition-all cursor-pointer"
               >
                 <Presentation className="w-4 h-4" />
                 <span>{t('openWhiteboard')}</span>

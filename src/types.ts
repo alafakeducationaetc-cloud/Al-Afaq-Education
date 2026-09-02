@@ -107,6 +107,9 @@ export interface TeacherProfile extends User {
   availabilitySlots?: TeacherAvailabilitySlot[];
   hourlyRatePrivateUSD?: number;
   monthlyRateGroupUSD?: number;
+  signatureUrl?: string; // Saved teacher signature image (transparent PNG or data URL)
+  sealUrl?: string;      // Saved teacher official seal/stamp image
+  titleArabic?: string;  // e.g. 'المعلم والمشرف الأكاديمي'
 }
 
 export interface Program {
@@ -174,6 +177,7 @@ export interface ClassSession {
   date: string; // YYYY-MM-DD
   startTime: string; // HH:MM (24h)
   endTime: string; // HH:MM (24h)
+  durationMinutes?: number;
   zoomUrl: string;
   zoomMeetingId?: string;
   zoomPassword?: string;
@@ -298,17 +302,89 @@ export interface Lesson {
   updatedAt: string;
 }
 
+export type NotificationAudience = 'ALL' | 'STUDENTS' | 'TEACHERS' | 'INDIVIDUAL';
+
 export interface NotificationItem {
   id: string;
-  userId: string;
+  userId?: string; // Specific user ID if targeted individually
+  targetAudience?: NotificationAudience;
   title: string;
   titleArabic?: string;
   message: string;
   messageArabic?: string;
-  type: 'CLASS_REMINDER' | 'SUBSCRIPTION' | 'ASSIGNMENT' | 'ATTENDANCE' | 'SYSTEM';
+  type: 'CLASS_REMINDER' | 'SUBSCRIPTION' | 'ASSIGNMENT' | 'ATTENDANCE' | 'SYSTEM' | 'PAYMENT';
   read: boolean;
+  readBy?: string[];
   createdAt: string;
   link?: string;
+  senderName?: string;
+  senderRole?: UserRole;
+}
+
+export interface Certificate {
+  id: string;
+  code: string; // CERT-2026-XXXX
+  studentId: string;
+  studentName: string;
+  studentNameArabic?: string;
+  studentCode?: string;
+  teacherId?: string;
+  teacherName: string;
+  teacherNameArabic?: string;
+  teacherTitle?: string;
+  programId: string;
+  programName: string;
+  programNameArabic?: string;
+  title?: string;
+  description?: string;
+  issueDate: string; // YYYY-MM-DD
+  completionDate?: string;
+  grade?: string; // e.g. 'ممتاز مع مرتبة الشرف'
+  gradeEnglish?: string; // e.g. 'Excellent with Highest Honors'
+  descriptionArabic?: string;
+  descriptionEnglish?: string;
+  issuedByUserId?: string;
+  issuedByRole?: UserRole;
+  supervisorSignatureName?: string;
+  supervisorSignatureTitle?: string;
+  teacherSignatureType?: 'DRAWN' | 'TEXT' | 'IMAGE' | 'IMAGE_UPLOAD' | 'STAMP';
+  teacherSignatureText?: string;
+  teacherSignatureUrl?: string;
+  teacherSignatureData?: string; // base64 / text
+  teacherSignatureTitle?: string;
+  teacherSealUrl?: string;
+  sealTitle?: string;
+  includePlatformStamp?: boolean;
+  academyStampType?: 'OFFICIAL_GOLD' | 'OFFICIAL_EMBLEM' | 'CUSTOM_UPLOAD' | 'NONE';
+  academyStampUrl?: string;
+  templateMode?: 'PRESET_ROYAL' | 'PRESET_ISLAMIC' | 'PRESET_MODERN' | 'PRESET_CLASSIC' | 'CUSTOM_IMAGE';
+  customBackgroundImageUrl?: string;
+  customImageWidth?: number;
+  customImageHeight?: number;
+  hideBuiltinBorders?: boolean;
+  borderStyle?: string;
+  customLayoutFields?: CertificateFieldLayout[];
+  status: 'ISSUED' | 'DRAFT' | 'REVOKED';
+  qrVerificationUrl?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface CertificateFieldLayout {
+  id: string; // 'studentName' | 'courseTitle' | 'issueDate' | 'grade' | 'description' | 'teacherName' | 'teacherSignature' | 'qrCode' | 'platformStamp' | 'certTitle' | 'certCode' | 'basmala'
+  label: string;
+  labelArabic: string;
+  xPercent: number; // 0 to 100 (% of canvas width)
+  yPercent: number; // 0 to 100 (% of canvas height)
+  fontSize: number; // pt size e.g. 14, 18, 24, 32, 48
+  fontWeight?: 'normal' | 'bold' | 'extrabold';
+  fontFamily?: 'serif' | 'sans' | 'mono';
+  color?: string; // hex color e.g. #29235D, #8C6826
+  textAlign?: 'center' | 'right' | 'left';
+  visible: boolean;
+  prefix?: string;
+  suffix?: string;
+  customText?: string;
 }
 
 export interface PlatformSettings {
@@ -332,6 +408,7 @@ export interface PlatformSettings {
   whatsappCustomMessage?: string;
   adminPasscode?: string; // Master security passcode for Super Admin to unlock everything
   logoUrl?: string; // Custom logo image URL (uploaded or web)
+  platformLogoUrl?: string;
   logoDisplayMode?: 'emblem' | 'custom' | 'combined'; // Logo rendering preference
   logoTextEn?: string;
   logoTextAr?: string;

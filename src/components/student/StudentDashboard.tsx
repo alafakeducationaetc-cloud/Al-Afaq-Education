@@ -91,6 +91,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onNavigateTa
           {/* Quick Action Buttons */}
           <div className="flex flex-wrap items-center gap-2.5">
             <button
+              onClick={() => onNavigateTab('certificates')}
+              className="px-4 py-2.5 rounded-2xl bg-[#D3B673] hover:bg-[#E8D5A3] text-[#29235D] font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
+            >
+              <Award className="w-4 h-4" />
+              <span>{isRTL ? 'شهاداتي وتكريماتي' : 'My Certificates'}</span>
+            </button>
+            <button
               onClick={() => onNavigateTab('messages')}
               className="px-4 py-2.5 rounded-2xl bg-white/15 hover:bg-white/25 text-[#E8D5A3] font-bold text-xs flex items-center gap-2 border border-[#D3B673]/40 transition-all shadow-xs cursor-pointer"
             >
@@ -106,9 +113,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onNavigateTa
             </button>
             <button
               onClick={() => onNavigateTab('activities')}
-              className="px-4 py-2.5 rounded-2xl bg-[#D3B673] hover:bg-[#E8D5A3] text-[#29235D] font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
+              className="px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-[#E8D5A3] font-bold text-xs flex items-center gap-2 border border-[#D3B673]/40 transition-all shadow-xs cursor-pointer"
             >
-              <Gamepad2 className="w-4 h-4" />
+              <Gamepad2 className="w-4 h-4 text-[#D3B673]" />
               <span>Play Activities</span>
             </button>
           </div>

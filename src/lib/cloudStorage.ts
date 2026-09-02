@@ -35,6 +35,7 @@ export const CLOUD_COLLECTIONS = {
   LESSONS: 'lessons',
   NOTIFICATIONS: 'notifications',
   MESSAGES: 'messages',
+  CERTIFICATES: 'certificates',
 };
 
 // Generic save document to Cloud Firestore

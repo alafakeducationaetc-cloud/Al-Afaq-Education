@@ -16,6 +16,7 @@ import { ProgramListView } from './components/programs/ProgramListView';
 import { LessonBuilderView } from './components/lessons/LessonBuilderView';
 import { ProfileView } from './components/profile/ProfileView';
 import { MessagingView } from './components/chat/MessagingView';
+import { CertificatesManager } from './components/certificates/CertificatesManager';
 import { FloatingWhatsAppButton } from './components/common/FloatingWhatsAppButton';
 
 const MainAppLayout: React.FC = () => {
@@ -55,6 +56,9 @@ const MainAppLayout: React.FC = () => {
 
       case 'lessons':
         return <LessonBuilderView onNavigateTab={setActiveTab} />;
+
+      case 'certificates':
+        return <CertificatesManager />;
 
       case 'students':
       case 'teachers':
@@ -105,7 +109,7 @@ const MainAppLayout: React.FC = () => {
           {/* Footer Notice */}
           <footer className="py-4 border-t border-[#29235D]/10 text-center text-xs text-[#786F9A]">
             <p>
-              ALTEQ Platform © {new Date().getFullYear()} — Alafak International Training and Education Consultants. All rights reserved.
+              منصة الآفاق التعليمية © {new Date().getFullYear()} — جميع الحقوق محفوظة
             </p>
           </footer>
         </div>

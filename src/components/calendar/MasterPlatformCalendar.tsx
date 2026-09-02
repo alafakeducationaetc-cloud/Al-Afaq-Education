@@ -106,8 +106,32 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
   const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN';
   const isTeacher = currentUser?.role === 'TEACHER';
   const isStudent = currentUser?.role === 'STUDENT';
-  const canSchedule = isAdmin || (isTeacher && hasTeacherPermission('canScheduleClasses'));
+  // Teacher cannot add classes; scheduling classes is strictly reserved for Admin/Super Admin only
+  const canSchedule = isAdmin;
   const canRecharge = isAdmin || isTeacher;
+
+  // Available instructors list: includes teachers and Admin himself for self-teaching (dual role)
+  const availableInstructors = useMemo(() => {
+    const list: { id: string; name: string; nameArabic?: string; isSelfAdmin?: boolean }[] = teachers.map(t => ({
+      id: t.id,
+      name: t.name,
+      nameArabic: t.nameArabic || t.name,
+      isSelfAdmin: false,
+    }));
+
+    if (currentUser && (currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'ADMIN')) {
+      const alreadyIn = list.some(i => i.id === currentUser.id);
+      if (!alreadyIn) {
+        list.unshift({
+          id: currentUser.id,
+          name: `${currentUser.name} (General Supervisor / Self-Teaching)`,
+          nameArabic: `${currentUser.nameArabic || currentUser.name} (المشرف العام - تدريس مباشر)`,
+          isSelfAdmin: true,
+        });
+      }
+    }
+    return list;
+  }, [teachers, currentUser]);
 
   // Views & Filters State
   const [viewMode, setViewMode] = useState<'WEEK' | 'MONTH' | 'DAY' | 'LIST'>(defaultView);
@@ -140,7 +164,9 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
   const [newTitle, setNewTitle] = useState('');
   const [newTitleAr, setNewTitleAr] = useState('');
   const [newProgramId, setNewProgramId] = useState(programs[0]?.id || '');
-  const [newTeacherId, setNewTeacherId] = useState(isTeacher ? currentUser.id : teachers[0]?.id || '');
+  const [newTeacherId, setNewTeacherId] = useState(
+    isTeacher ? currentUser.id : availableInstructors[0]?.id || teachers[0]?.id || ''
+  );
   const [newStudentId, setNewStudentId] = useState(students[0]?.id || '');
   const [newGroupStudentIds, setNewGroupStudentIds] = useState<string[]>(students.length > 0 ? [students[0].id] : []);
   const [studentSearchInModal, setStudentSearchInModal] = useState<string>('');
@@ -900,21 +926,21 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
         {!isStudent && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 pt-2 border-t border-gray-100 text-xs">
             
-            {/* Filter by Teacher (Admin only) */}
+            {/* Filter by Teacher / Admin (Admin only) */}
             {isAdmin && (
               <div>
                 <label className="block text-[11px] font-bold text-gray-500 mb-1">
-                  {isRTL ? 'فلترة حسب المعلم' : 'Filter by Teacher'}
+                  {isRTL ? 'فلترة حسب المعلم / المشرف' : 'Filter by Instructor'}
                 </label>
                 <select
                   value={filterTeacherId}
                   onChange={e => setFilterTeacherId(e.target.value)}
                   className="w-full p-2 bg-[#FBF9F4] border border-gray-200 rounded-xl font-medium text-[#29235D]"
                 >
-                  <option value="ALL">{isRTL ? 'جميع المعلمين' : 'All Teachers'}</option>
-                  {teachers.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {isRTL ? t.nameArabic || t.name : t.name}
+                  <option value="ALL">{isRTL ? 'جميع المعلمين والمشرف' : 'All Instructors'}</option>
+                  {availableInstructors.map(inst => (
+                    <option key={inst.id} value={inst.id}>
+                      {isRTL ? inst.nameArabic || inst.name : inst.name}
                     </option>
                   ))}
                 </select>
@@ -2031,7 +2057,7 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-[#29235D] mb-1">
-                    {isRTL ? 'المعلم المسند *' : 'Assigned Teacher *'}
+                    {isRTL ? 'المعلم أو المشرف المسند للدرس *' : 'Assigned Teacher / Instructor *'}
                   </label>
                   <select
                     disabled={isTeacher}
@@ -2039,7 +2065,7 @@ export const MasterPlatformCalendar: React.FC<MasterPlatformCalendarProps> = ({
                     onChange={e => setNewTeacherId(e.target.value)}
                     className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl font-semibold"
                   >
-                    {teachers.map(t => (
+                    {availableInstructors.map(t => (
                       <option key={t.id} value={t.id}>
                         {isRTL ? t.nameArabic || t.name : t.name}
                       </option>

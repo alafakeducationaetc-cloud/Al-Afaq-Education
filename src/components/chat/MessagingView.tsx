@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useI18n } from '../../lib/i18n';
-import { ChatMessage, MessageAttachment, Activity } from '../../types';
+import { ChatMessage, MessageAttachment, Activity, StudentProfile, TeacherProfile } from '../../types';
 import { ActivityPlayer } from '../activities/ActivityPlayer';
 import {
   MessageCircle,
@@ -90,18 +90,67 @@ export const MessagingView: React.FC<MessagingViewProps> = ({
     }[] = [];
 
     if (isAdmin) {
-      // Admin sees ALL conversations across the platform (students, teachers, groups)
-      
-      // 1. All Student-Teacher 1-on-1 pairs that have messages or assignments
+      // 1. Direct 1-on-1 with All Students
+      students.forEach(std => {
+        const threadMsgs = messages.filter(
+          m =>
+            !m.isGroup &&
+            ((m.senderId === currentUser.id && m.recipientId === std.id) ||
+              (m.senderId === std.id && m.recipientId === currentUser.id))
+        );
+        const lastMsg = threadMsgs[threadMsgs.length - 1];
+        const unreadCount = threadMsgs.filter(
+          m => m.senderId === std.id && (!m.readBy || !m.readBy.includes(currentUser.id))
+        ).length;
+
+        list.push({
+          key: `private-std-${std.id}`,
+          id: std.id,
+          isGroup: false,
+          title: isRTL ? std.nameArabic || std.name : std.name,
+          subtitle: isRTL ? `طالب (كود: ${std.code})` : `Student (${std.code})`,
+          avatar: std.avatarUrl,
+          roleBadge: isRTL ? 'طالب' : 'Student',
+          lastMessage: lastMsg,
+          unreadCount,
+        });
+      });
+
+      // 2. Direct 1-on-1 with All Teachers
+      teachers.forEach(tea => {
+        const threadMsgs = messages.filter(
+          m =>
+            !m.isGroup &&
+            ((m.senderId === currentUser.id && m.recipientId === tea.id) ||
+              (m.senderId === tea.id && m.recipientId === currentUser.id))
+        );
+        const lastMsg = threadMsgs[threadMsgs.length - 1];
+        const unreadCount = threadMsgs.filter(
+          m => m.senderId === tea.id && (!m.readBy || !m.readBy.includes(currentUser.id))
+        ).length;
+
+        list.push({
+          key: `private-tea-${tea.id}`,
+          id: tea.id,
+          isGroup: false,
+          title: isRTL ? tea.nameArabic || tea.name : tea.name,
+          subtitle: isRTL ? `معلم (كود: ${tea.code})` : `Teacher (${tea.code})`,
+          avatar: tea.avatarUrl,
+          roleBadge: isRTL ? 'معلم' : 'Teacher',
+          lastMessage: lastMsg,
+          unreadCount,
+        });
+      });
+
+      // 3. Monitored Student-Teacher conversation pairs across the platform
       const userPairs = new Set<string>();
       messages.forEach(m => {
-        if (!m.isGroup && m.recipientId) {
+        if (!m.isGroup && m.recipientId && m.senderId !== currentUser.id && m.recipientId !== currentUser.id) {
           const pairKey = [m.senderId, m.recipientId].sort().join('__');
           userPairs.add(pairKey);
         }
       });
 
-      // Also include current teacher-student assignments from classes/students
       students.forEach(std => {
         std.assignedTeacherIds.forEach(teaId => {
           const pairKey = [std.id, teaId].sort().join('__');
@@ -124,19 +173,20 @@ export const MessagingView: React.FC<MessagingViewProps> = ({
           const lastMsg = pairMessages[pairMessages.length - 1];
 
           list.push({
-            key: `private-${pair}`,
+            key: `monitor-${pair}`,
             id: pair,
             isGroup: false,
-            title: `${user1.name} ↔ ${user2.name}`,
-            subtitle: `${user1.role === 'TEACHER' ? 'معلم' : 'طالب'} مع ${user2.role === 'TEACHER' ? 'معلم' : 'طالب'}`,
+            title: `👁️ ${user1.name} ↔ ${user2.name}`,
+            subtitle: isRTL ? `مراقبة محادثة طالب ومعلم` : `Monitored Pair`,
             avatar: user1.avatarUrl || user2.avatarUrl,
+            roleBadge: isRTL ? 'مراقبة' : 'Monitor',
             lastMessage: lastMsg,
             unreadCount: 0,
           });
         }
       });
 
-      // 2. All Group Circles
+      // 4. All Group Circles
       const groupMap = new Map<string, string>();
       messages.forEach(m => {
         if (m.isGroup && m.groupId) {
@@ -163,49 +213,74 @@ export const MessagingView: React.FC<MessagingViewProps> = ({
         });
       });
     } else if (isTeacher) {
-      // Teacher sees:
-      // 1. Their assigned students
-      const myStudentIds = new Set<string>();
+      // 1. Direct Admin Thread (Administration / Supervision)
+      const adminMsgs = messages.filter(
+        m =>
+          !m.isGroup &&
+          ((m.senderId === currentUser.id && (m.recipientId === 'usr-adm-1' || m.recipientId === 'admin')) ||
+            ((m.senderId === 'usr-adm-1' || m.senderId === 'admin') && m.recipientId === currentUser.id))
+      );
+      const lastAdminMsg = adminMsgs[adminMsgs.length - 1];
+      const unreadAdminCount = adminMsgs.filter(
+        m => m.senderId !== currentUser.id && (!m.readBy || !m.readBy.includes(currentUser.id))
+      ).length;
+
+      list.push({
+        key: 'private-admin',
+        id: 'usr-adm-1',
+        isGroup: false,
+        title: isRTL ? 'إدارة منصة الآفاق (المشرف العام)' : 'Al-Afak Administration',
+        subtitle: isRTL ? 'المشرف العام والإدارة الأكاديمية' : 'General Supervisor',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+        roleBadge: isRTL ? 'الإدارة' : 'Admin',
+        lastMessage: lastAdminMsg,
+        unreadCount: unreadAdminCount,
+      });
+
+      // 2. All Students (assigned & platform)
+      const targetStudents = new Map<string, StudentProfile>();
       students.forEach(s => {
         if (s.assignedTeacherIds.includes(currentUser.id)) {
-          myStudentIds.add(s.id);
+          targetStudents.set(s.id, s);
         }
       });
       classes.forEach(c => {
         if (c.teacherId === currentUser.id) {
-          c.studentIds.forEach(sId => myStudentIds.add(sId));
-        }
-      });
-
-      myStudentIds.forEach(stdId => {
-        const std = students.find(s => s.id === stdId);
-        if (std) {
-          const threadMsgs = messages.filter(
-            m =>
-              !m.isGroup &&
-              ((m.senderId === currentUser.id && m.recipientId === std.id) ||
-                (m.senderId === std.id && m.recipientId === currentUser.id))
-          );
-          const lastMsg = threadMsgs[threadMsgs.length - 1];
-          const unreadCount = threadMsgs.filter(
-            m => m.senderId === std.id && (!m.readBy || !m.readBy.includes(currentUser.id))
-          ).length;
-
-          list.push({
-            key: `private-${std.id}`,
-            id: std.id,
-            isGroup: false,
-            title: std.name,
-            subtitle: isRTL ? `طالب (كود: ${std.code})` : `Student (${std.code})`,
-            avatar: std.avatarUrl,
-            roleBadge: isRTL ? 'طالب' : 'Student',
-            lastMessage: lastMsg,
-            unreadCount,
+          c.studentIds.forEach(sId => {
+            const std = students.find(s => s.id === sId);
+            if (std) targetStudents.set(std.id, std);
           });
         }
       });
+      // Also add any other student that messaged the teacher or all students if few
+      students.forEach(s => targetStudents.set(s.id, s));
 
-      // 2. Group classes the teacher manages
+      targetStudents.forEach(std => {
+        const threadMsgs = messages.filter(
+          m =>
+            !m.isGroup &&
+            ((m.senderId === currentUser.id && m.recipientId === std.id) ||
+              (m.senderId === std.id && m.recipientId === currentUser.id))
+        );
+        const lastMsg = threadMsgs[threadMsgs.length - 1];
+        const unreadCount = threadMsgs.filter(
+          m => m.senderId === std.id && (!m.readBy || !m.readBy.includes(currentUser.id))
+        ).length;
+
+        list.push({
+          key: `private-${std.id}`,
+          id: std.id,
+          isGroup: false,
+          title: isRTL ? std.nameArabic || std.name : std.name,
+          subtitle: isRTL ? `طالب (كود: ${std.code})` : `Student (${std.code})`,
+          avatar: std.avatarUrl,
+          roleBadge: isRTL ? 'طالب' : 'Student',
+          lastMessage: lastMsg,
+          unreadCount,
+        });
+      });
+
+      // 3. Group classes the teacher manages
       const myGroupClasses = classes.filter(c => c.teacherId === currentUser.id && c.studentIds.length > 1);
       const groupIds = new Set<string>(myGroupClasses.map(c => c.id));
       messages.forEach(m => {
@@ -234,8 +309,31 @@ export const MessagingView: React.FC<MessagingViewProps> = ({
         });
       });
     } else if (isStudent) {
-      // Student sees:
-      // 1. Their assigned teachers
+      // 1. Administration Thread (Al-Afak Admin)
+      const adminMsgs = messages.filter(
+        m =>
+          !m.isGroup &&
+          ((m.senderId === currentUser.id && (m.recipientId === 'usr-adm-1' || m.recipientId === 'admin')) ||
+            ((m.senderId === 'usr-adm-1' || m.senderId === 'admin') && m.recipientId === currentUser.id))
+      );
+      const lastAdminMsg = adminMsgs[adminMsgs.length - 1];
+      const unreadAdminCount = adminMsgs.filter(
+        m => (m.senderId === 'usr-adm-1' || m.senderId === 'admin') && (!m.readBy || !m.readBy.includes(currentUser.id))
+      ).length;
+
+      list.push({
+        key: 'private-admin',
+        id: 'usr-adm-1',
+        isGroup: false,
+        title: isRTL ? 'إدارة منصة الآفاق (المشرف العام)' : 'Al-Afak Administration',
+        subtitle: isRTL ? 'الإدارة العامة والمتابعة الأكاديمية' : 'General Administration',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+        roleBadge: isRTL ? 'الإدارة' : 'Admin',
+        lastMessage: lastAdminMsg,
+        unreadCount: unreadAdminCount,
+      });
+
+      // 2. All assigned teachers and teachers from student classes
       const studentObj = students.find(s => s.id === currentUser.id);
       const myTeacherIds = new Set<string>(studentObj?.assignedTeacherIds || []);
       classes.forEach(c => {
@@ -243,8 +341,19 @@ export const MessagingView: React.FC<MessagingViewProps> = ({
           myTeacherIds.add(c.teacherId);
         }
       });
+      // Also add any teacher who sent a direct message to this student
+      messages.forEach(m => {
+        if (!m.isGroup && m.recipientId === currentUser.id) {
+          myTeacherIds.add(m.senderId);
+        }
+      });
+      // Fallback: if no assigned teachers, list all available teachers
+      if (myTeacherIds.size === 0) {
+        teachers.forEach(t => myTeacherIds.add(t.id));
+      }
 
       myTeacherIds.forEach(teaId => {
+        if (teaId === 'usr-adm-1' || teaId === 'admin') return;
         const tea = teachers.find(t => t.id === teaId);
         if (tea) {
           const threadMsgs = messages.filter(
@@ -262,7 +371,7 @@ export const MessagingView: React.FC<MessagingViewProps> = ({
             key: `private-${tea.id}`,
             id: tea.id,
             isGroup: false,
-            title: tea.name,
+            title: isRTL ? tea.nameArabic || tea.name : tea.name,
             subtitle: isRTL ? `معلم ومحفّظ` : `Instructor`,
             avatar: tea.avatarUrl,
             roleBadge: isRTL ? 'معلم' : 'Teacher',
@@ -272,7 +381,7 @@ export const MessagingView: React.FC<MessagingViewProps> = ({
         }
       });
 
-      // 2. Group circles the student belongs to
+      // 3. Group circles the student belongs to
       const myGroupClasses = classes.filter(c => c.studentIds.includes(currentUser.id) && c.studentIds.length > 1);
       myGroupClasses.forEach(cls => {
         const title = isRTL ? cls.titleArabic || cls.title : cls.title;

@@ -19,6 +19,7 @@ import {
   TeacherAvailabilitySlot,
   ChatMessage,
   UserRole,
+  Certificate,
 } from '../types';
 import {
   initialSettings,
@@ -33,6 +34,7 @@ import {
   initialLessons,
   initialNotifications,
   initialMessages,
+  initialCertificates,
 } from '../data/seedData';
 import {
   saveCloudDoc,
@@ -66,6 +68,7 @@ interface AppContextType {
   activities: Activity[];
   lessons: Lesson[];
   notifications: NotificationItem[];
+  certificates: Certificate[];
   settings: PlatformSettings;
   isCloudSynced: boolean;
   themeMode: ThemeMode;
@@ -156,9 +159,23 @@ interface AppContextType {
   addLesson: (lsn: Omit<Lesson, 'id' | 'code' | 'createdAt' | 'updatedAt'>) => void;
   updateLesson: (id: string, updates: Partial<Lesson>) => void;
   
+  // Certificate operations (Issuance, custom signatures, stamps, honors)
+  issueCertificate: (cert: Omit<Certificate, 'id' | 'code' | 'createdAt'>) => Certificate;
+  updateCertificate: (id: string, updates: Partial<Certificate>) => void;
+  deleteCertificate: (id: string) => void;
+
   // Settings & Notifications
   updateSettings: (newSettings: Partial<PlatformSettings>) => void;
   markNotificationAsRead: (id: string) => void;
+  sendBroadcastNotification: (data: {
+    title: string;
+    titleArabic?: string;
+    message: string;
+    messageArabic?: string;
+    targetAudience: 'ALL' | 'STUDENTS' | 'TEACHERS';
+    type?: 'SYSTEM' | 'CLASS_REMINDER' | 'SUBSCRIPTION' | 'ASSIGNMENT' | 'ATTENDANCE' | 'PAYMENT';
+  }) => void;
+  deleteNotification: (id: string) => void;
   
   // Stats helpers
   getStudentStats: (studentId: string) => {
@@ -220,6 +237,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [lessons, setLessons] = useState<Lesson[]>(() => loadStored('lessons', initialLessons));
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => loadStored('notifications', initialNotifications));
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadStored('messages', initialMessages));
+  const [certificates, setCertificates] = useState<Certificate[]>(() => loadStored('certificates', initialCertificates));
   const [isCloudSynced, setIsCloudSynced] = useState<boolean>(true);
   
   // Theme Mode (Night Reading Mode / Sepia / Light)
@@ -287,6 +305,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { localStorage.setItem('alteq_lessons', JSON.stringify(lessons)); }, [lessons]);
   useEffect(() => { localStorage.setItem('alteq_notifications', JSON.stringify(notifications)); }, [notifications]);
   useEffect(() => { localStorage.setItem('alteq_messages', JSON.stringify(messages)); }, [messages]);
+  useEffect(() => { localStorage.setItem('alteq_certificates', JSON.stringify(certificates)); }, [certificates]);
   useEffect(() => { 
     if (currentUser) {
       localStorage.setItem('alteq_current_user_id', currentUser.id);
@@ -400,7 +419,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     );
 
-    // 10. Subscribe to Platform Settings Doc
+    // 11. Subscribe to Certificates
+    const unsubCertificates = subscribeToCloudCollection<Certificate>(
+      CLOUD_COLLECTIONS.CERTIFICATES,
+      cloudCerts => {
+        if (cloudCerts && cloudCerts.length > 0) {
+          setCertificates(cloudCerts);
+        }
+      }
+    );
+
+    // 12. Subscribe to Platform Settings Doc
     const unsubSettings = subscribeToCloudDoc<PlatformSettings>(
       CLOUD_COLLECTIONS.SETTINGS,
       'global_settings',
@@ -411,7 +440,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     );
 
-    // 11. Subscribe to Admin Profile Doc
+    // 13. Subscribe to Admin Profile Doc
     const unsubAdmin = subscribeToCloudDoc<User>(
       CLOUD_COLLECTIONS.ADMIN_PROFILE,
       'main_admin',
@@ -433,6 +462,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubLessons();
       unsubNotifications();
       unsubMessages();
+      unsubCertificates();
       unsubSettings();
       unsubAdmin();
     };
@@ -1006,15 +1036,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       saveCloudDoc(CLOUD_COLLECTIONS.SUBSCRIPTIONS, newSubId, newSub);
     }
 
-    // Add notification for the student
+    // Add notification strictly for the specific student only
     const notifId = `notif-charge-${Date.now()}`;
-    const newNotif = {
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const newNotif: NotificationItem = {
       id: notifId,
       userId: studentId,
+      targetAudience: 'INDIVIDUAL',
       title: '🎉 تم شحن باقة الحصص بنجاح',
+      titleArabic: '🎉 تم شحن باقة الحصص بنجاح',
       message: `تمت إضافة ${additionalSessions} حصص إلى رصيد حسابك التعليمي. يمكنك الآن الانضمام للحصص والسبورة التفاعلية.`,
-      type: 'PAYMENT' as const,
-      date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      messageArabic: `تمت إضافة ${additionalSessions} حصص إلى رصيد حسابك التعليمي. يمكنك الآن الانضمام للحصص والسبورة التفاعلية.`,
+      type: 'PAYMENT',
+      createdAt: nowStr,
       read: false,
     };
     setNotifications(prev => [newNotif, ...prev]);
@@ -1061,6 +1095,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setClasses(prev => [newCls, ...prev]);
     saveCloudDoc(CLOUD_COLLECTIONS.CLASSES, id, newCls);
+
+    // Send notifications STRICTLY to the assigned teacher and enrolled students
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const newNotifications: NotificationItem[] = [];
+
+    // Notification for assigned teacher only
+    if (data.teacherId) {
+      const teacherNotifId = `notif-tea-${Date.now()}-${data.teacherId}`;
+      const teacherNotif: NotificationItem = {
+        id: teacherNotifId,
+        userId: data.teacherId,
+        targetAudience: 'INDIVIDUAL',
+        title: '📅 تم إدراج حصة جديدة بجدولك',
+        titleArabic: '📅 تم إدراج حصة جديدة بجدولك',
+        message: `تمت جدولة حصة (${data.titleArabic || data.title}) بتاريخ ${data.date} الساعة ${data.startTime}`,
+        messageArabic: `تمت جدولة حصة (${data.titleArabic || data.title}) بتاريخ ${data.date} الساعة ${data.startTime}`,
+        type: 'CLASS_REMINDER',
+        createdAt: nowStr,
+        read: false,
+      };
+      newNotifications.push(teacherNotif);
+      saveCloudDoc(CLOUD_COLLECTIONS.NOTIFICATIONS, teacherNotifId, teacherNotif);
+    }
+
+    // Notification for enrolled students only
+    data.studentIds.forEach((sId, index) => {
+      const studentNotifId = `notif-stu-${Date.now()}-${index}-${sId}`;
+      const studentNotif: NotificationItem = {
+        id: studentNotifId,
+        userId: sId,
+        targetAudience: 'INDIVIDUAL',
+        title: '📅 موعد حصة دراسية مجدولة',
+        titleArabic: '📅 موعد حصة دراسية مجدولة',
+        message: `تمت جدولة حصة (${data.titleArabic || data.title}) بتاريخ ${data.date} الساعة ${data.startTime}`,
+        messageArabic: `تمت جدولة حصة (${data.titleArabic || data.title}) بتاريخ ${data.date} الساعة ${data.startTime}`,
+        type: 'CLASS_REMINDER',
+        createdAt: nowStr,
+        read: false,
+      };
+      newNotifications.push(studentNotif);
+      saveCloudDoc(CLOUD_COLLECTIONS.NOTIFICATIONS, studentNotifId, studentNotif);
+    });
+
+    if (newNotifications.length > 0) {
+      setNotifications(prev => [...newNotifications, ...prev]);
+    }
   };
 
   const addClassSessionsBatch = (sessions: Omit<ClassSession, 'id'>[]) => {
@@ -1083,6 +1163,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     newSessions.forEach(cls => {
       saveCloudDoc(CLOUD_COLLECTIONS.CLASSES, cls.id, cls);
     });
+
+    // Notify teacher and students for the batch
+    const firstSession = sessions[0];
+    if (firstSession) {
+      const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+      const newNotifications: NotificationItem[] = [];
+
+      if (firstSession.teacherId) {
+        const teacherNotifId = `notif-tea-batch-${Date.now()}-${firstSession.teacherId}`;
+        const teacherNotif: NotificationItem = {
+          id: teacherNotifId,
+          userId: firstSession.teacherId,
+          targetAudience: 'INDIVIDUAL',
+          title: `📅 تم إدراج جدول حصص دورية (${sessions.length} حصص)`,
+          titleArabic: `📅 تم إدراج جدول حصص دورية (${sessions.length} حصص)`,
+          message: `تمت جدولة باقة حصص متكررة (${firstSession.titleArabic || firstSession.title}) في جدول مواعيدك.`,
+          messageArabic: `تمت جدولة باقة حصص متكررة (${firstSession.titleArabic || firstSession.title}) في جدول مواعيدك.`,
+          type: 'CLASS_REMINDER',
+          createdAt: nowStr,
+          read: false,
+        };
+        newNotifications.push(teacherNotif);
+        saveCloudDoc(CLOUD_COLLECTIONS.NOTIFICATIONS, teacherNotifId, teacherNotif);
+      }
+
+      firstSession.studentIds.forEach((sId, index) => {
+        const studentNotifId = `notif-stu-batch-${Date.now()}-${index}-${sId}`;
+        const studentNotif: NotificationItem = {
+          id: studentNotifId,
+          userId: sId,
+          targetAudience: 'INDIVIDUAL',
+          title: `📅 جدول مواعيد دراسية جديدة (${sessions.length} حصص)`,
+          titleArabic: `📅 جدول مواعيد دراسية جديدة (${sessions.length} حصص)`,
+          message: `تمت جدولة باقة حصص جديدة (${firstSession.titleArabic || firstSession.title}) في جدولك الدراسي.`,
+          messageArabic: `تمت جدولة باقة حصص جديدة (${firstSession.titleArabic || firstSession.title}) في جدولك الدراسي.`,
+          type: 'CLASS_REMINDER',
+          createdAt: nowStr,
+          read: false,
+        };
+        newNotifications.push(studentNotif);
+        saveCloudDoc(CLOUD_COLLECTIONS.NOTIFICATIONS, studentNotifId, studentNotif);
+      });
+
+      if (newNotifications.length > 0) {
+        setNotifications(prev => [...newNotifications, ...prev]);
+      }
+    }
   };
 
   const updateClassSession = (id: string, updates: Partial<ClassSession>) => {
@@ -1427,6 +1554,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  // Certificate Operations
+  const issueCertificate = (data: Omit<Certificate, 'id' | 'code' | 'createdAt'>): Certificate => {
+    const id = `cert-${Date.now()}`;
+    const code = `CERT-${new Date().getFullYear()}-${String(certificates.length + 1).padStart(3, '0')}`;
+    const today = new Date().toISOString().split('T')[0];
+
+    const newCert: Certificate = {
+      ...data,
+      id,
+      code,
+      createdAt: today,
+      qrVerificationUrl: `https://alafak.edu/verify/${code}`,
+    };
+
+    setCertificates(prev => [newCert, ...prev]);
+    saveCloudDoc(CLOUD_COLLECTIONS.CERTIFICATES, id, newCert);
+
+    // Notify student about the new certificate
+    if (data.studentId) {
+      const notifId = `notif-cert-${Date.now()}`;
+      const certNotif: NotificationItem = {
+        id: notifId,
+        userId: data.studentId,
+        title: '🎉 تهانينا! تم إصدار شهادة تقدير جديدة لك',
+        message: `تم اعتماد شهادتك الرسمية في برنامج ${data.programNameArabic || data.programName}. يمكنك معاينتها وتحميلها الآن!`,
+        type: 'SYSTEM',
+        read: false,
+        createdAt: `${today} 12:00`,
+      };
+      setNotifications(prev => [certNotif, ...prev]);
+      saveCloudDoc(CLOUD_COLLECTIONS.NOTIFICATIONS, notifId, certNotif);
+    }
+
+    return newCert;
+  };
+
+  const updateCertificate = (id: string, updates: Partial<Certificate>) => {
+    setCertificates(prev => {
+      const updatedList = prev.map(c => {
+        if (c.id === id) {
+          const updated = { ...c, ...updates };
+          saveCloudDoc(CLOUD_COLLECTIONS.CERTIFICATES, id, updated);
+          return updated;
+        }
+        return c;
+      });
+      return updatedList;
+    });
+  };
+
+  const deleteCertificate = (id: string) => {
+    setCertificates(prev => prev.filter(c => c.id !== id));
+    deleteCloudDoc(CLOUD_COLLECTIONS.CERTIFICATES, id);
+  };
+
   // Settings
   const updateSettings = (newSettings: Partial<PlatformSettings>) => {
     const updated = { ...settings, ...newSettings };
@@ -1443,6 +1625,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (target) {
       saveCloudDoc(CLOUD_COLLECTIONS.NOTIFICATIONS, id, { ...target, read: true });
     }
+  };
+
+  const sendBroadcastNotification = (data: {
+    title: string;
+    titleArabic?: string;
+    message: string;
+    messageArabic?: string;
+    targetAudience: 'ALL' | 'STUDENTS' | 'TEACHERS';
+    type?: 'SYSTEM' | 'CLASS_REMINDER' | 'SUBSCRIPTION' | 'ASSIGNMENT' | 'ATTENDANCE' | 'PAYMENT';
+  }) => {
+    const id = `notif-bc-${Date.now()}`;
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const newNotif: NotificationItem = {
+      id,
+      title: data.title,
+      titleArabic: data.titleArabic || data.title,
+      message: data.message,
+      messageArabic: data.messageArabic || data.message,
+      targetAudience: data.targetAudience,
+      type: data.type || 'SYSTEM',
+      createdAt: now,
+      read: false,
+      senderName: currentUser?.nameArabic || currentUser?.name || 'المشرف العام',
+      senderRole: currentUser?.role || 'SUPER_ADMIN',
+    };
+    setNotifications(prev => [newNotif, ...prev]);
+    saveCloudDoc(CLOUD_COLLECTIONS.NOTIFICATIONS, id, newNotif);
+  };
+
+  const deleteNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    deleteCloudDoc(CLOUD_COLLECTIONS.NOTIFICATIONS, id);
   };
 
   // Helper calculation for student stats
@@ -1674,8 +1888,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteActivity,
         addLesson,
         updateLesson,
+        certificates,
+        issueCertificate,
+        updateCertificate,
+        deleteCertificate,
         updateSettings,
         markNotificationAsRead,
+        sendBroadcastNotification,
+        deleteNotification,
         getStudentStats,
         registerStudentAndEnroll,
         updateTeacherAvailability,

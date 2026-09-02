@@ -22,6 +22,9 @@ import {
   Edit3,
   Award,
   BookOpen,
+  PenTool,
+  Stamp,
+  RotateCcw,
 } from 'lucide-react';
 
 const AVATAR_PRESETS = [
@@ -118,11 +121,102 @@ export const ProfileView: React.FC = () => {
     setTimeout(() => setProfileSaved(false), 2500);
   };
 
+  const isTeacher = currentUser?.role === 'TEACHER' || isSuperAdmin;
+  const [signatureUrl, setSignatureUrl] = useState<string>((currentUser as any)?.signatureUrl || '');
+  const [sealUrl, setSealUrl] = useState<string>((currentUser as any)?.sealUrl || '');
+  const [signatureSaved, setSignatureSaved] = useState(false);
+  const signatureInputRef = useRef<HTMLInputElement | null>(null);
+  const sealInputRef = useRef<HTMLInputElement | null>(null);
+  const sigCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isSigDrawing, setIsSigDrawing] = useState(false);
+
+  const startSigDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = sigCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    setIsSigDrawing(true);
+    const rect = canvas.getBoundingClientRect();
+    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.strokeStyle = '#29235D';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+  };
+
+  const drawSig = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isSigDrawing) return;
+    const canvas = sigCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const stopSigDraw = () => {
+    if (isSigDrawing && sigCanvasRef.current) {
+      setIsSigDrawing(false);
+      const dataUrl = sigCanvasRef.current.toDataURL('image/png');
+      setSignatureUrl(dataUrl);
+    }
+  };
+
+  const clearSigCanvas = () => {
+    const canvas = sigCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setSignatureUrl('');
+  };
+
+  const handleSignatureFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setSignatureUrl(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSealFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setSealUrl(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSavePasscode = () => {
     if (!passcode || passcode.trim().length < 3) return;
     updateAdminPasscode(passcode.trim());
     setPasscodeSaved(true);
     setTimeout(() => setPasscodeSaved(false), 2500);
+  };
+
+  const handleSaveSignatureAndSeal = () => {
+    updateCurrentUserProfile({
+      signatureUrl,
+      sealUrl,
+    } as any);
+    setSignatureSaved(true);
+    setTimeout(() => setSignatureSaved(false), 2500);
   };
 
   return (
@@ -169,8 +263,8 @@ export const ProfileView: React.FC = () => {
 
             <p className="text-xs text-white/80 max-w-xl">
               {isRTL
-                ? 'مركز الآفاق الدولية للاستشارات التدريبية والتعليمية (AITEC) — بوابة إدارة الحساب والصلاحيات الشاملة.'
-                : 'Al-Afak International For Training And Educational Consultants (AITEC) — Profile & Master Security Gateway.'}
+                ? 'منصة الآفاق الدولية — بوابة إدارة الحساب والاعتمادات الأكاديمية.'
+                : 'Al-Afak International — Profile & Master Security Gateway.'}
             </p>
 
             <div className="flex items-center justify-center sm:justify-start gap-2 pt-1">
@@ -410,12 +504,195 @@ export const ProfileView: React.FC = () => {
               onClick={logout}
               className="w-full py-2.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold transition-all cursor-pointer"
             >
-              {isRTL ? 'تسجيل الخروج من المنصة' : 'Sign Out from AITEC'}
+              {isRTL ? 'تسجيل الخروج من المنصة' : 'Sign Out from Al-Afak'}
             </button>
           </div>
         </div>
 
       </div>
+
+      {/* TEACHER / SUPERVISOR OFFICIAL SIGNATURE & SEAL CARD */}
+      {isTeacher && (
+        <div className="bg-white rounded-3xl p-6 sm:p-7 border border-[#D3B673]/40 shadow-md space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-[#29235D] text-[#D3B673] flex items-center justify-center">
+                <PenTool className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#D3B673]/20 text-[#8C6826] border border-[#D3B673]/40">
+                  Digital Accreditation
+                </span>
+                <h3 className="text-base sm:text-lg font-bold text-[#29235D] font-serif">
+                  {isRTL ? 'التوقيع والختم الرقمي المعتمد للشهادات' : 'Official Signature & Seal for Certificates'}
+                </h3>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSaveSignatureAndSeal}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#29235D] to-[#1D1845] text-[#D3B673] font-bold text-xs border border-[#D3B673] shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Save className="w-4 h-4" />
+              <span>{isRTL ? 'حفظ واعتماد التوقيع في ملفك' : 'Save & Bind Signature'}</span>
+            </button>
+          </div>
+
+          <p className="text-xs text-gray-600 leading-relaxed">
+            {isRTL
+              ? 'تتيح لك هذه الميزة رفع أو رسم توقيعك وختمك الرسمي، ليتم استدعاؤهما تلقائياً وفورياً عند إصدار الشهادات للطلاب دون الحاجة لإعادة الرفع في كل مرة.'
+              : 'Upload or draw your official signature and stamp. It will be automatically retrieved whenever certificates are issued to students.'}
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+            {/* Signature Box */}
+            <div className="space-y-3 p-4 rounded-2xl bg-[#FBF9F4] border border-[#29235D]/10">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-[#29235D] flex items-center gap-1.5">
+                  <PenTool className="w-3.5 h-3.5 text-[#D3B673]" />
+                  <span>{isRTL ? 'التوقيع الرقمي (رسم أو رفع صورة)' : 'Official Signature'}</span>
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={clearSigCanvas}
+                    className="text-[10px] text-gray-500 hover:text-red-600 flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-gray-200/60"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>{isRTL ? 'مسح' : 'Clear'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Live Canvas Drawing */}
+              <div className="border-2 border-dashed border-gray-300 rounded-xl bg-white p-1 relative overflow-hidden flex flex-col items-center">
+                <canvas
+                  ref={sigCanvasRef}
+                  width={340}
+                  height={110}
+                  onMouseDown={startSigDraw}
+                  onMouseMove={drawSig}
+                  onMouseUp={stopSigDraw}
+                  onMouseLeave={stopSigDraw}
+                  onTouchStart={startSigDraw}
+                  onTouchMove={drawSig}
+                  onTouchEnd={stopSigDraw}
+                  className="cursor-crosshair w-full h-[110px] touch-none"
+                />
+                <span className="text-[10px] text-gray-400 font-sans absolute bottom-1 right-2 pointer-events-none">
+                  {isRTL ? '✍️ ارسم توقيعك هنا بالماوس أو الإصبع' : '✍️ Draw signature here'}
+                </span>
+              </div>
+
+              {/* Upload Image alternative */}
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="file"
+                  ref={signatureInputRef}
+                  onChange={handleSignatureFileUpload}
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => signatureInputRef.current?.click()}
+                  className="w-full py-2 px-3 rounded-xl bg-[#29235D]/10 hover:bg-[#29235D]/15 text-[#29235D] text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5 text-[#8C6826]" />
+                  <span>{isRTL ? 'أو رفع صورة توقيع مفرغة (PNG)' : 'Or Upload Signature PNG'}</span>
+                </button>
+              </div>
+
+              {/* Current Signature Preview */}
+              {signatureUrl && (
+                <div className="p-2.5 rounded-xl bg-white border border-emerald-300 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <img src={signatureUrl} alt="Signature Preview" className="h-10 max-w-[120px] object-contain" />
+                    <span className="text-[10px] text-emerald-700 font-bold">
+                      {isRTL ? '✓ التوقيع جاهز ومحفوظ' : '✓ Signature ready'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSignatureUrl('')}
+                    className="text-xs text-red-500 hover:text-red-700 font-bold px-2 py-1"
+                  >
+                    {isRTL ? 'حذف' : 'Remove'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Seal / Stamp Box */}
+            <div className="space-y-3 p-4 rounded-2xl bg-[#FBF9F4] border border-[#29235D]/10">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-[#29235D] flex items-center gap-1.5">
+                  <Stamp className="w-3.5 h-3.5 text-[#D3B673]" />
+                  <span>{isRTL ? 'الختم الأكاديمي المعتمد (صورة)' : 'Official Stamp / Seal'}</span>
+                </label>
+              </div>
+
+              <div className="h-[110px] border-2 border-dashed border-gray-300 rounded-xl bg-white flex flex-col items-center justify-center p-2 text-center">
+                {sealUrl ? (
+                  <img src={sealUrl} alt="Official Seal" className="h-20 w-20 object-contain" />
+                ) : (
+                  <div className="space-y-1">
+                    <Stamp className="w-7 h-7 text-gray-300 mx-auto" />
+                    <p className="text-[10px] text-gray-400">
+                      {isRTL ? 'لم يتم رفع ختم رسمي بعد' : 'No official stamp uploaded'}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="file"
+                  ref={sealInputRef}
+                  onChange={handleSealFileUpload}
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => sealInputRef.current?.click()}
+                  className="w-full py-2 px-3 rounded-xl bg-[#29235D]/10 hover:bg-[#29235D]/15 text-[#29235D] text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5 text-[#8C6826]" />
+                  <span>{isRTL ? 'رفع صورة الختم المعتمد (PNG)' : 'Upload Official Seal'}</span>
+                </button>
+              </div>
+
+              {sealUrl && (
+                <div className="p-2.5 rounded-xl bg-white border border-emerald-300 flex items-center justify-between">
+                  <span className="text-[10px] text-emerald-700 font-bold">
+                    {isRTL ? '✓ الختم جاهز ومحفوظ' : '✓ Seal ready'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSealUrl('')}
+                    className="text-xs text-red-500 hover:text-red-700 font-bold px-2 py-1"
+                  >
+                    {isRTL ? 'حذف' : 'Remove'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {signatureSaved && (
+            <div className="p-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+              <Check className="w-4 h-4 text-emerald-600" />
+              <span>
+                {isRTL
+                  ? 'تم حفظ واعتماد التوقيع والختم في ملفك الشخصي بنجاح! سيتم استدعاؤهما تلقائياً في الشهادات.'
+                  : 'Official signature and seal saved successfully! They will auto-load when issuing certificates.'}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* AVATAR SELECTOR & UPLOAD MODAL */}
       {showAvatarModal && (

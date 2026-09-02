@@ -6,6 +6,8 @@ import { ProgramEditModal } from '../programs/ProgramEditModal';
 import { PasswordManagerModal } from './PasswordManagerModal';
 import { BrandingManager } from './BrandingManager';
 import { UserAvatarEditModal } from './UserAvatarEditModal';
+import { BroadcastNotificationModal } from './BroadcastNotificationModal';
+import { CertificatesManager } from '../certificates/CertificatesManager';
 import {
   Program,
   User,
@@ -46,6 +48,12 @@ import {
   KeyRound,
   Palette,
   Camera,
+  Bell,
+  Send,
+  Video,
+  Clock,
+  Check,
+  Award,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -62,7 +70,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
     classes,
     attendance,
     activities,
+    certificates,
     settings,
+    notifications,
+    deleteNotification,
     addStudent,
     updateStudent,
     deleteStudent,
@@ -84,8 +95,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
   const { t, isRTL } = useI18n();
 
   const [activeAdminSubTab, setActiveAdminSubTab] = useState<
-    'OVERVIEW' | 'STUDENTS' | 'TEACHERS' | 'PROGRAMS' | 'SUBSCRIPTIONS' | 'ATTENDANCE' | 'PERMISSIONS' | 'PASSWORDS' | 'BRANDING' | 'SETTINGS'
+    'OVERVIEW' | 'STUDENTS' | 'TEACHERS' | 'MY_CLASSES' | 'NOTIFICATIONS' | 'CERTIFICATES' | 'PROGRAMS' | 'SUBSCRIPTIONS' | 'ATTENDANCE' | 'PERMISSIONS' | 'PASSWORDS' | 'BRANDING' | 'SETTINGS'
   >('OVERVIEW');
+
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
@@ -243,6 +256,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
           {/* Quick Action Badges */}
           <div className="flex flex-wrap items-center gap-2">
             <button
+              onClick={() => setShowBroadcastModal(true)}
+              className="px-4 py-2.5 rounded-2xl bg-[#D3B673] hover:bg-[#E8D5A3] text-[#29235D] font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
+            >
+              <Send className="w-4 h-4" />
+              <span>{isRTL ? '📢 إرسال وبث إشعار' : 'Broadcast Alert'}</span>
+            </button>
+            <button
+              onClick={() => setActiveAdminSubTab('MY_CLASSES')}
+              className="px-4 py-2.5 rounded-2xl bg-[#1D1845] hover:bg-[#251F45] text-[#E8D5A3] font-bold text-xs flex items-center gap-2 border border-[#D3B673]/40 transition-all cursor-pointer"
+            >
+              <GraduationCap className="w-4 h-4 text-[#D3B673]" />
+              <span>{isRTL ? '🎓 حصصي وتدريسي' : 'My Classes'}</span>
+            </button>
+            <button
               onClick={() => {
                 setAvatarModalUser(currentUser || ({
                   id: 'usr-adm-1',
@@ -254,24 +281,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
                   avatarUrl: currentUser?.avatarUrl,
                 } as any));
               }}
-              className="px-4 py-2.5 rounded-2xl bg-[#D3B673] hover:bg-[#E8D5A3] text-[#29235D] font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
+              className="px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-2 border border-white/20 transition-all cursor-pointer"
             >
-              <Camera className="w-4 h-4" />
-              <span>{isRTL ? 'تعديل صورتي الشخصية' : 'Edit My Photo'}</span>
+              <Camera className="w-4 h-4 text-[#D3B673]" />
+              <span>{isRTL ? 'تعديل صورتي' : 'My Photo'}</span>
             </button>
             <button
               onClick={() => setActiveAdminSubTab('BRANDING')}
               className="px-4 py-2.5 rounded-2xl bg-white/15 hover:bg-white/25 text-[#E8D5A3] font-bold text-xs flex items-center gap-2 border border-[#D3B673]/40 transition-all cursor-pointer"
             >
               <Palette className="w-4 h-4 text-[#D3B673]" />
-              <span>{isRTL ? 'تعديل الشعار والهوية' : 'Edit Logo & Brand'}</span>
+              <span>{isRTL ? 'الشعار والهوية' : 'Branding'}</span>
             </button>
             <button
               onClick={() => setActiveAdminSubTab('PASSWORDS')}
               className="px-4 py-2.5 rounded-2xl bg-[#29235D] hover:bg-[#1D1845] text-[#D3B673] font-bold text-xs flex items-center gap-2 border border-[#D3B673]/40 transition-all cursor-pointer"
             >
               <KeyRound className="w-4 h-4" />
-              <span>{isRTL ? 'التحكم بالباسوردات' : 'Manage Passwords'}</span>
+              <span>{isRTL ? 'الباسوردات' : 'Passwords'}</span>
             </button>
             <button
               onClick={() => setShowAddStudentModal(true)}
@@ -333,6 +360,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 bg-white p-1.5 rounded-2xl border border-[#29235D]/10 text-xs font-bold">
         {[
           { id: 'OVERVIEW', label: isRTL ? 'نظرة عامة' : 'Dashboard Overview', icon: <BarChart3 className="w-3.5 h-3.5" /> },
+          { id: 'CERTIFICATES', label: isRTL ? `🏆 الشهادات والاعتمادات (${certificates.length})` : `Certificates (${certificates.length})`, icon: <Award className="w-3.5 h-3.5 text-[#D3B673]" /> },
+          { id: 'MY_CLASSES', label: isRTL ? `🎓 دروسي المباشرة (${classes.filter(c => c.teacherId === currentUser?.id || c.teacherId === 'usr-adm-1').length})` : `My Classes (${classes.filter(c => c.teacherId === currentUser?.id || c.teacherId === 'usr-adm-1').length})`, icon: <GraduationCap className="w-3.5 h-3.5 text-[#D3B673]" /> },
+          { id: 'NOTIFICATIONS', label: isRTL ? `📢 بث وإدارة الإشعارات (${notifications.length})` : `Notifications (${notifications.length})`, icon: <Bell className="w-3.5 h-3.5 text-[#D3B673]" /> },
           { id: 'STUDENTS', label: isRTL ? `الطلاب (${students.length})` : `Students (${students.length})`, icon: <GraduationCap className="w-3.5 h-3.5" /> },
           { id: 'TEACHERS', label: isRTL ? `المعلمون (${teachers.length})` : `Teachers (${teachers.length})`, icon: <Users className="w-3.5 h-3.5" /> },
           { id: 'PASSWORDS', label: isRTL ? 'كلمات المرور والأمان' : 'Passwords & Passcodes', icon: <KeyRound className="w-3.5 h-3.5 text-[#B89955]" /> },
@@ -359,6 +389,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
       </div>
 
       {/* 4. Tab Contents */}
+
+      {/* CERTIFICATES TAB */}
+      {activeAdminSubTab === 'CERTIFICATES' && (
+        <CertificatesManager />
+      )}
 
       {/* OVERVIEW TAB */}
       {activeAdminSubTab === 'OVERVIEW' && (
@@ -436,6 +471,275 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MY CLASSES (TEACHER DUAL ROLE) TAB */}
+      {activeAdminSubTab === 'MY_CLASSES' && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-[#29235D] via-[#1D1845] to-[#29235D] rounded-3xl p-6 text-white border border-[#D3B673]/30 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#D3B673] text-[#29235D]">
+                  {isRTL ? 'وضع التدريس المباشر للمشرف العام' : 'Supervisor Direct Teaching Mode'}
+                </span>
+                <span className="text-xs text-[#E8D5A3]">
+                  {isRTL ? 'إدارة وتقديم الدروس الخاصة بك' : 'Manage your direct sessions'}
+                </span>
+              </div>
+              <h3 className="text-xl font-bold font-serif mt-1 text-white">
+                {isRTL ? '🎓 حصصي وتدريسي المباشر' : 'My Direct Teaching Classes'}
+              </h3>
+              <p className="text-xs text-gray-300 mt-1 max-w-xl">
+                {isRTL
+                  ? 'بصفتك المشرف العام، يمكنك جدولة وتدريس الحصص بنفسك مباشرة للطلاب مع كامل أدوات الغرفة الافتراضية والسبورة التفاعلية وسجل المتابعة.'
+                  : 'As Super Admin, you can assign and teach sessions directly to students with full classroom controls.'}
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigateTab('calendar')}
+              className="px-4 py-2.5 rounded-2xl bg-[#D3B673] hover:bg-[#E8D5A3] text-[#29235D] font-bold text-xs flex items-center gap-2 transition-all cursor-pointer self-start md:self-auto"
+            >
+              <Calendar className="w-4 h-4" />
+              <span>{isRTL ? 'جدولة درس جديد لنفسي' : 'Schedule Lesson in Calendar'}</span>
+            </button>
+          </div>
+
+          {/* Classes list */}
+          {(() => {
+            const adminClasses = classes.filter(
+              c => c.teacherId === currentUser?.id || c.teacherId === 'usr-adm-1'
+            );
+
+            if (adminClasses.length === 0) {
+              return (
+                <div className="bg-white rounded-3xl p-12 border border-[#29235D]/10 text-center space-y-4 shadow-xs">
+                  <div className="w-16 h-16 rounded-full bg-[#F4EFE6] text-[#29235D] flex items-center justify-center mx-auto">
+                    <GraduationCap className="w-8 h-8 text-[#B89955]" />
+                  </div>
+                  <h4 className="text-base font-bold text-[#29235D] font-serif">
+                    {isRTL ? 'لا توجد حصص مسندة لتدريسك المباشر حالياً' : 'No direct teaching sessions assigned yet'}
+                  </h4>
+                  <p className="text-xs text-gray-500 max-w-md mx-auto">
+                    {isRTL
+                      ? 'يمكنك التوجه لجدول المنصة، والضغط على "إضافة موعد حصة"، واختيار نفسك كمعلم مسند للدرس لتبدأ التدريس فورياً.'
+                      : 'Go to the Platform Calendar, click "Add Class Session", and select yourself as the Instructor to start teaching.'}
+                  </p>
+                  <button
+                    onClick={() => onNavigateTab('calendar')}
+                    className="px-5 py-2.5 bg-[#29235D] text-[#D3B673] font-bold text-xs rounded-2xl shadow-md hover:bg-[#1D1845] transition-all cursor-pointer inline-flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>{isRTL ? 'إضافة حصة دراسية جديدة' : 'Add Class Session Now'}</span>
+                  </button>
+                </div>
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {adminClasses.map(cls => {
+                  const enrolledStudents = students.filter(s => cls.studentIds.includes(s.id));
+                  const program = programs.find(p => p.id === cls.programId);
+
+                  return (
+                    <div
+                      key={cls.id}
+                      className="bg-white rounded-3xl p-5 border border-[#29235D]/10 shadow-xs space-y-4 hover:border-[#D3B673] transition-all"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#29235D] text-[#D3B673]">
+                              {program?.nameArabic || program?.name || 'برنامج دراسي'}
+                            </span>
+                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                              {cls.status}
+                            </span>
+                          </div>
+                          <h4 className="text-sm font-bold text-[#29235D] mt-1.5 font-serif">
+                            {isRTL ? cls.titleArabic || cls.title : cls.title}
+                          </h4>
+                          {cls.topic && <p className="text-xs text-gray-500 mt-0.5">{cls.topic}</p>}
+                        </div>
+                      </div>
+
+                      {/* Date & Time info */}
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600 bg-[#FBF9F4] p-3 rounded-2xl">
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <Calendar className="w-3.5 h-3.5 text-[#B89955]" />
+                          <span>{cls.date}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <Clock className="w-3.5 h-3.5 text-[#B89955]" />
+                          <span>{cls.startTime} - {cls.endTime}</span>
+                        </div>
+                        <div className="text-[10px] font-bold text-[#29235D] mr-auto rtl:mr-0 rtl:ml-auto">
+                          {cls.durationMinutes || 60} {isRTL ? 'دقيقة' : 'min'}
+                        </div>
+                      </div>
+
+                      {/* Enrolled Students */}
+                      <div className="space-y-2">
+                        <p className="text-[11px] font-bold text-[#29235D]">
+                          {isRTL ? `الطلاب المشتركون (${enrolledStudents.length}):` : `Enrolled Students (${enrolledStudents.length}):`}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {enrolledStudents.map(std => {
+                            const quota = getStudentQuota(std.id);
+                            return (
+                              <div
+                                key={std.id}
+                                className="flex items-center gap-2 p-1.5 pr-3 rtl:pr-1.5 rtl:pl-3 bg-gray-50 border border-gray-100 rounded-xl text-xs"
+                              >
+                                <img
+                                  src={std.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                                  alt={std.name}
+                                  className="w-6 h-6 rounded-full object-cover"
+                                />
+                                <span className="font-bold text-[#29235D] text-[11px]">
+                                  {isRTL ? std.nameArabic || std.name : std.name}
+                                </span>
+                                <span
+                                  className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
+                                    quota.isEligible ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                                  }`}
+                                >
+                                  {quota.remainingSessions} {isRTL ? 'حصة متبقية' : 'left'}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Classroom Actions */}
+                      <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                        <a
+                          href={cls.zoomUrl || settings.defaultZoomLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 py-2 rounded-xl bg-[#29235D] hover:bg-[#1D1845] text-[#D3B673] text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs"
+                        >
+                          <Video className="w-3.5 h-3.5" />
+                          <span>{isRTL ? 'دخول قاعة البث (Zoom)' : 'Launch Classroom'}</span>
+                        </a>
+                        <button
+                          onClick={() => onNavigateTab('whiteboard')}
+                          className="px-3 py-2 rounded-xl bg-[#F4EFE6] hover:bg-[#EAE2D2] text-[#29235D] text-xs font-bold transition-all cursor-pointer"
+                        >
+                          {isRTL ? 'السبورة' : 'Whiteboard'}
+                        </button>
+                      </div>
+
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* NOTIFICATIONS & BROADCAST TAB */}
+      {activeAdminSubTab === 'NOTIFICATIONS' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-3xl p-6 border border-[#29235D]/10 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#29235D] text-[#D3B673]">
+                  {isRTL ? 'مركز التحكم بالإشعارات والبث المباشر' : 'Broadcast & Notifications Center'}
+                </span>
+              </div>
+              <h3 className="text-xl font-bold font-serif mt-1 text-[#29235D]">
+                {isRTL ? '📢 إدارة وبث الإشعارات لجميع المستخدمين' : 'Platform Broadcast Notifications'}
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                {isRTL
+                  ? 'بث الإعلانات العامة والتنبيهات المخصصة للطلاب فقط أو للمعلمين فقط أو لكلا الفئتين فورياً.'
+                  : 'Broadcast system updates and announcements to students, faculty, or all platform users.'}
+              </p>
+            </div>
+            <button
+              onClick={() => setShowBroadcastModal(true)}
+              className="px-5 py-3 rounded-2xl bg-[#29235D] hover:bg-[#1D1845] text-[#D3B673] font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer self-start md:self-auto"
+            >
+              <Send className="w-4 h-4" />
+              <span>{isRTL ? 'إرسال إشعار جديد الآن' : 'Send New Broadcast'}</span>
+            </button>
+          </div>
+
+          {/* Notifications feed list */}
+          <div className="bg-white rounded-3xl p-6 border border-[#29235D]/10 shadow-xs space-y-4">
+            <h4 className="text-sm font-bold text-[#29235D] font-serif">
+              {isRTL ? `سجل الإشعارات المرسلة (${notifications.length})` : `Sent Notifications Feed (${notifications.length})`}
+            </h4>
+
+            {notifications.length === 0 ? (
+              <div className="text-center py-10">
+                <Bell className="w-10 h-10 text-gray-300 mx-auto mb-2 opacity-50" />
+                <p className="text-xs text-gray-500 font-medium">
+                  {isRTL ? 'لا توجد إشعارات مسجلة حتى الآن' : 'No notifications found in feed'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {notifications.map(notif => (
+                  <div
+                    key={notif.id}
+                    className="p-4 rounded-2xl bg-[#FBF9F4] border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                            notif.targetAudience === 'ALL'
+                              ? 'bg-purple-100 text-purple-800'
+                              : notif.targetAudience === 'STUDENTS'
+                              ? 'bg-blue-100 text-blue-800'
+                              : notif.targetAudience === 'TEACHERS'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}
+                        >
+                          {notif.targetAudience === 'ALL'
+                            ? (isRTL ? 'عام (الجميع)' : 'Everyone')
+                            : notif.targetAudience === 'STUDENTS'
+                            ? (isRTL ? 'الطلاب فقط' : 'Students Only')
+                            : notif.targetAudience === 'TEACHERS'
+                            ? (isRTL ? 'المعلمون فقط' : 'Teachers Only')
+                            : (isRTL ? 'مخصص / فردي' : 'Individual')}
+                        </span>
+                        <span className="text-xs font-bold text-[#29235D]">
+                          {isRTL ? notif.titleArabic || notif.title : notif.title}
+                        </span>
+                        <span className="text-[10px] text-gray-400 font-mono">
+                          {notif.createdAt}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 leading-relaxed">
+                        {isRTL ? notif.messageArabic || notif.message : notif.message}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <button
+                        onClick={() => {
+                          if (confirm(isRTL ? 'هل تريد حذف هذا الإشعار نهائياً؟' : 'Delete this notification?')) {
+                            deleteNotification(notif.id);
+                          }
+                        }}
+                        className="p-2 rounded-xl text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+                        title={isRTL ? 'حذف الإشعار' : 'Delete'}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1117,6 +1421,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
         user={avatarModalUser}
         isOpen={!!avatarModalUser}
         onClose={() => setAvatarModalUser(null)}
+      />
+
+      {/* BROADCAST NOTIFICATION MODAL */}
+      <BroadcastNotificationModal
+        isOpen={showBroadcastModal}
+        onClose={() => setShowBroadcastModal(false)}
       />
 
     </div>
