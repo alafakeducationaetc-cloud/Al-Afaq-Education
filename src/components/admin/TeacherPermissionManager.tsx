@@ -456,9 +456,22 @@ export const TeacherPermissionManager: React.FC = () => {
                       </button>
                     </div>
                     <div>
-                      <h4 className="text-sm sm:text-base font-bold text-[#29235D] font-serif leading-tight">
-                        {isRTL ? tea.nameArabic || tea.name : tea.name}
-                      </h4>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="text-sm sm:text-base font-bold text-[#29235D] font-serif leading-tight">
+                          {isRTL ? tea.nameArabic || tea.name : tea.name}
+                        </h4>
+                        {isSupervisor && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingTeacher(tea)}
+                            className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-[#D3B673]/20 hover:bg-[#D3B673]/40 text-[#29235D] border border-[#D3B673]/40 transition-all cursor-pointer shadow-xs"
+                            title={isRTL ? 'تعديل اسمي وبياناتي التدريسية' : 'Edit my name & details'}
+                          >
+                            <Edit3 className="w-2.5 h-2.5 text-[#B89955]" />
+                            <span>{isRTL ? 'تعديل اسمي' : 'Edit My Name'}</span>
+                          </button>
+                        )}
+                      </div>
                       <p className="text-[11px] text-[#B89955] font-medium mt-0.5 line-clamp-1">
                         {isRTL ? tea.specializationArabic || tea.specialization : tea.specialization}
                       </p>
@@ -1130,13 +1143,25 @@ export const TeacherPermissionManager: React.FC = () => {
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <Edit3 className="w-5 h-5 text-[#D3B673]" />
-                <h3 className="text-base font-bold text-[#29235D] font-serif">
-                  {isRTL ? 'تعديل بيانات المدرب' : 'Edit Trainer Details'}
-                </h3>
+                <div>
+                  <h3 className="text-base font-bold text-[#29235D] font-serif">
+                    {editingTeacher.id === 'usr-adm-1' || editingTeacher.code === 'ADM-0001'
+                      ? (isRTL ? 'تعديل بيانات المشرف العام والمدرب المباشر' : 'Edit Supervisor & Instructor Profile')
+                      : (isRTL ? 'تعديل بيانات المدرب' : 'Edit Trainer Details')}
+                  </h3>
+                  {(editingTeacher.id === 'usr-adm-1' || editingTeacher.code === 'ADM-0001') && (
+                    <p className="text-[11px] text-[#B89955] font-medium">
+                      {isRTL
+                        ? 'سيتم تحديث اسمك في جميع شاشات المنصة وقوائم إسناد الطلاب وجداول الحصص فور الحفظ.'
+                        : 'Your name will update across all platform screens, student assignment lists, and timetables.'}
+                    </p>
+                  )}
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setEditingTeacher(null)}
-                className="p-1 text-gray-400 hover:text-gray-600"
+                className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-pointer"
               >
                 ✕
               </button>

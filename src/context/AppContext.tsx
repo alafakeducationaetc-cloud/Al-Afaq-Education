@@ -228,20 +228,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const [settings, setSettings] = useState<PlatformSettings>(() => loadStored('settings', initialSettings));
-  const [adminProfile, setAdminProfile] = useState<User>(() => loadStored('admin_profile', initialAdmin));
+  const [adminProfile, setAdminProfile] = useState<User>(() => {
+    const loaded = loadStored('admin_profile', initialAdmin);
+    const isOldPlaceholder =
+      !loaded.name ||
+      loaded.name === 'Al-Afak International Director' ||
+      loaded.nameArabic === 'إدارة منصة الآفاق الدولية (المشرف العام)' ||
+      loaded.nameArabic === 'إدارة منصة الآفاق الدولية';
+    if (isOldPlaceholder) {
+      return {
+        ...loaded,
+        name: 'Ahmad Ibrahim',
+        nameArabic: 'أحمد إبراهيم',
+      };
+    }
+    return loaded;
+  });
   const [students, setStudents] = useState<StudentProfile[]>(() => loadStored('students', initialStudents));
   const [teachers, setTeachers] = useState<TeacherProfile[]>(() => {
     const loaded = loadStored<TeacherProfile[]>('teachers', initialTeachers);
     const supervisor = supervisorTeacherProfile;
     const mapped = loaded.map(t => {
       if (t.id === 'usr-adm-1' || t.code === 'ADM-0001' || t.email === supervisor.email) {
+        const isOldPlaceholder =
+          !t.name ||
+          t.name === 'Al-Afak International Director' ||
+          t.nameArabic === 'إدارة منصة الآفاق الدولية (المشرف العام)' ||
+          t.nameArabic === 'إدارة منصة الآفاق الدولية';
         return {
           ...supervisor,
           ...t,
           id: 'usr-adm-1',
           code: 'ADM-0001',
-          name: t.name || supervisor.name,
-          nameArabic: t.nameArabic || supervisor.nameArabic,
+          name: isOldPlaceholder ? supervisor.name : (t.name || supervisor.name),
+          nameArabic: isOldPlaceholder ? supervisor.nameArabic : (t.nameArabic || supervisor.nameArabic),
           email: t.email || supervisor.email,
           phone: t.phone || supervisor.phone,
           specializationArabic: t.specializationArabic || supervisor.specializationArabic,
@@ -320,7 +340,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const storedStudents = loadStored('students', initialStudents);
     const storedTeachers = loadStored('teachers', initialTeachers);
     if (savedId) {
-      if (savedId === storedAdmin.id || savedId === initialAdmin.id) return storedAdmin;
+      if (savedId === storedAdmin.id || savedId === initialAdmin.id) {
+        const isOldPlaceholder =
+          !storedAdmin.name ||
+          storedAdmin.name === 'Al-Afak International Director' ||
+          storedAdmin.nameArabic === 'إدارة منصة الآفاق الدولية (المشرف العام)' ||
+          storedAdmin.nameArabic === 'إدارة منصة الآفاق الدولية';
+        if (isOldPlaceholder) {
+          return {
+            ...storedAdmin,
+            name: 'Ahmad Ibrahim',
+            nameArabic: 'أحمد إبراهيم',
+          };
+        }
+        return storedAdmin;
+      }
       const foundStd = storedStudents.find(s => s.id === savedId);
       if (foundStd) return foundStd;
       const foundTea = storedTeachers.find(t => t.id === savedId);
@@ -963,7 +997,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       return updatedList;
     });
-    if (currentUser && currentUser.id === id) {
+    if (id === 'usr-adm-1' || id === adminProfile.id) {
+      setAdminProfile(prev => {
+        const updated = {
+          ...prev,
+          name: updates.name || prev.name,
+          nameArabic: updates.nameArabic || prev.nameArabic,
+          email: updates.email || prev.email,
+          phone: updates.phone || prev.phone,
+          avatarUrl: updates.avatarUrl || prev.avatarUrl,
+        };
+        saveCloudDoc(CLOUD_COLLECTIONS.ADMIN_PROFILE, 'main_admin', updated);
+        return updated;
+      });
+    }
+    if (currentUser && (currentUser.id === id || (id === 'usr-adm-1' && (currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'ADMIN')))) {
       setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
     }
   };
