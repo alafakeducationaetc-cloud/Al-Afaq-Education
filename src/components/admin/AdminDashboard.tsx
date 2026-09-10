@@ -8,6 +8,7 @@ import { BrandingManager } from './BrandingManager';
 import { UserAvatarEditModal } from './UserAvatarEditModal';
 import { BroadcastNotificationModal } from './BroadcastNotificationModal';
 import { CertificatesManager } from '../certificates/CertificatesManager';
+import { PlatformTimetableCalendar } from '../calendar/PlatformTimetableCalendar';
 import {
   Program,
   User,
@@ -56,11 +57,27 @@ import {
   Award,
 } from 'lucide-react';
 
+export type AdminSubTab =
+  | 'OVERVIEW'
+  | 'STUDENTS'
+  | 'TEACHERS'
+  | 'MY_CLASSES'
+  | 'NOTIFICATIONS'
+  | 'CERTIFICATES'
+  | 'PROGRAMS'
+  | 'SUBSCRIPTIONS'
+  | 'ATTENDANCE'
+  | 'PERMISSIONS'
+  | 'PASSWORDS'
+  | 'BRANDING'
+  | 'SETTINGS';
+
 interface AdminDashboardProps {
   onNavigateTab: (tab: string) => void;
+  initialSubTab?: AdminSubTab;
 }
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab, initialSubTab }) => {
   const {
     currentUser,
     students,
@@ -94,9 +111,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
 
   const { t, isRTL } = useI18n();
 
-  const [activeAdminSubTab, setActiveAdminSubTab] = useState<
-    'OVERVIEW' | 'STUDENTS' | 'TEACHERS' | 'MY_CLASSES' | 'NOTIFICATIONS' | 'CERTIFICATES' | 'PROGRAMS' | 'SUBSCRIPTIONS' | 'ATTENDANCE' | 'PERMISSIONS' | 'PASSWORDS' | 'BRANDING' | 'SETTINGS'
-  >('OVERVIEW');
+  const [activeAdminSubTab, setActiveAdminSubTab] = useState<AdminSubTab>(initialSubTab || 'OVERVIEW');
+  const [showSupervisorTimetableModal, setShowSupervisorTimetableModal] = useState(false);
 
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
 
@@ -497,13 +513,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
                   : 'As Super Admin, you can assign and teach sessions directly to students with full classroom controls.'}
               </p>
             </div>
-            <button
-              onClick={() => onNavigateTab('calendar')}
-              className="px-4 py-2.5 rounded-2xl bg-[#D3B673] hover:bg-[#E8D5A3] text-[#29235D] font-bold text-xs flex items-center gap-2 transition-all cursor-pointer self-start md:self-auto"
-            >
-              <Calendar className="w-4 h-4" />
-              <span>{isRTL ? 'جدولة درس جديد لنفسي' : 'Schedule Lesson in Calendar'}</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+              <button
+                onClick={() => setShowSupervisorTimetableModal(true)}
+                className="px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-2 transition-all cursor-pointer border border-white/20 shadow-xs"
+              >
+                <Clock className="w-4 h-4 text-[#D3B673]" />
+                <span>{isRTL ? 'جدول مواعيدي الأسبوعية (التفرغ)' : 'My Weekly Availability'}</span>
+              </button>
+
+              <button
+                onClick={() => onNavigateTab('calendar')}
+                className="px-4 py-2.5 rounded-2xl bg-[#D3B673] hover:bg-[#E8D5A3] text-[#29235D] font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md"
+              >
+                <Calendar className="w-4 h-4" />
+                <span>{isRTL ? 'جدولة درس جديد لنفسي' : 'Schedule Lesson in Calendar'}</span>
+              </button>
+            </div>
           </div>
 
           {/* Classes list */}
@@ -1428,6 +1454,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
         isOpen={showBroadcastModal}
         onClose={() => setShowBroadcastModal(false)}
       />
+
+      {/* SUPERVISOR TIMETABLE MODAL */}
+      {showSupervisorTimetableModal && (
+        <PlatformTimetableCalendar
+          teacher={
+            teachers.find(t => t.id === 'usr-adm-1' || t.code === 'ADM-0001') || {
+              id: 'usr-adm-1',
+              code: 'ADM-0001',
+              name: 'المشرف العام',
+              nameArabic: 'المشرف العام - إدارة المنصة',
+              email: 'alafak.education.aetc@gmail.com',
+              role: 'TEACHER',
+              status: 'ACTIVE',
+              avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+              joinedDate: '2025-01-01',
+              assignedProgramIds: programs.map(p => p.id),
+              assignedStudentIds: [],
+              teacherPermissions: {
+                canCreateLessons: true,
+                canCreateActivities: true,
+                canManageAttendance: true,
+                canScheduleClasses: true,
+                canViewAllReports: true,
+                canIssueCertificates: true,
+                canAccessWhiteboard: true,
+                canEditCurriculum: true,
+              },
+              availabilitySlots: [],
+            }
+          }
+          onClose={() => setShowSupervisorTimetableModal(false)}
+        />
+      )}
 
     </div>
   );

@@ -24,6 +24,7 @@ import {
 import {
   initialSettings,
   initialAdmin,
+  supervisorTeacherProfile,
   initialTeachers,
   initialStudents,
   initialPrograms,
@@ -228,7 +229,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [settings, setSettings] = useState<PlatformSettings>(() => loadStored('settings', initialSettings));
   const [adminProfile, setAdminProfile] = useState<User>(() => loadStored('admin_profile', initialAdmin));
   const [students, setStudents] = useState<StudentProfile[]>(() => loadStored('students', initialStudents));
-  const [teachers, setTeachers] = useState<TeacherProfile[]>(() => loadStored('teachers', initialTeachers));
+  const [teachers, setTeachers] = useState<TeacherProfile[]>(() => {
+    const loaded = loadStored<TeacherProfile[]>('teachers', initialTeachers);
+    const supervisor = supervisorTeacherProfile;
+    const hasSupervisor = loaded.some(
+      t => t.id === 'usr-adm-1' || t.code === 'ADM-0001' || t.email === supervisor.email
+    );
+    if (!hasSupervisor) {
+      return [supervisor, ...loaded];
+    }
+    return loaded.map(t => {
+      if (t.id === 'usr-adm-1' || t.code === 'ADM-0001' || t.email === supervisor.email) {
+        return {
+          ...supervisor,
+          ...t,
+          id: 'usr-adm-1',
+          code: 'ADM-0001',
+          name: t.name || supervisor.name,
+          nameArabic: t.nameArabic || supervisor.nameArabic,
+          email: t.email || supervisor.email,
+          phone: t.phone || supervisor.phone,
+          specializationArabic: t.specializationArabic || supervisor.specializationArabic,
+          teacherPermissions: {
+            canCreateLessons: true,
+            canCreateActivities: true,
+            canManageAttendance: true,
+            canScheduleClasses: true,
+            canViewAllReports: true,
+            canIssueCertificates: true,
+            canAccessWhiteboard: true,
+            canEditCurriculum: true,
+          },
+          availabilitySlots:
+            t.availabilitySlots && t.availabilitySlots.length > 0
+              ? t.availabilitySlots
+              : supervisor.availabilitySlots,
+        };
+      }
+      return t;
+    });
+  });
   const [programs, setPrograms] = useState<Program[]>(() => loadStored('programs', initialPrograms));
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(() => loadStored('subscriptions', initialSubscriptions));
   const [classes, setClasses] = useState<ClassSession[]>(() => loadStored('classes', initialClasses));
@@ -469,7 +509,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // Combined users list
-  const users: User[] = [adminProfile, ...teachers, ...students];
+  const users: User[] = [adminProfile, ...teachers.filter(t => t.id !== adminProfile.id), ...students];
 
   // Auth implementation with strict portal/role separation
   const loginWithCode = (
@@ -491,7 +531,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (settings.contactEmail && cleanCode === settings.contactEmail.toUpperCase());
 
     const matchedTeacher = teachers.find(
-      t => t.code.toUpperCase() === cleanCode || (t.email && t.email.toUpperCase() === cleanCode)
+      t => t.id !== 'usr-adm-1' && (t.code.toUpperCase() === cleanCode || (t.email && t.email.toUpperCase() === cleanCode))
     );
 
     const matchedStudent = students.find(
@@ -522,10 +562,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (requiredRole === 'TEACHER') {
       if (isAdminAccount || cleanCode.startsWith('ADM') || cleanCode === currentAdminPasscode.toUpperCase()) {
-        return {
-          success: false,
-          message: 'هذا الكود مخصص لحساب المدير العام (الإدارة) ولا يمكن الدخول به من بوابة المدربين. يرجى التبديل لبوابة المدير العام.',
-        };
+        // The supervisor is also a master instructor! Permit login with admin credentials
+        const adminPassword = adminProfile.password || currentAdminPasscode;
+        const isPassCorrect =
+          !cleanName ||
+          cleanName === currentAdminPasscode ||
+          cleanName === adminPassword ||
+          cleanNameLower === 'admin123' ||
+          cleanName === (adminProfile.code || '').toUpperCase();
+
+        if (isPassCorrect) {
+          setCurrentUser(adminProfile);
+          return { success: true };
+        }
+        return { success: false, message: 'كلمة مرور المشرف العام غير صحيحة.' };
       }
       if (matchedStudent || cleanCode.startsWith('STD')) {
         return {
@@ -565,7 +615,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 3. Authenticate within matching role
     // Admin Authentication
     if (isAdminAccount || cleanCode === currentAdminPasscode.toUpperCase()) {
-      if (requiredRole && requiredRole !== 'ADMIN') {
+      if (requiredRole && requiredRole !== 'ADMIN' && requiredRole !== 'TEACHER') {
         return {
           success: false,
           message: 'غير مصرح بالدخول لحساب الإدارة من هذه البوابة.',
@@ -667,6 +717,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updatedAdmin = { ...adminProfile, ...updates };
       setAdminProfile(updatedAdmin);
       setCurrentUser(updatedAdmin);
+      setTeachers(prev =>
+        prev.map(t => {
+          if (t.id === 'usr-adm-1' || t.code === 'ADM-0001') {
+            return {
+              ...t,
+              name: updates.name || t.name,
+              nameArabic: updates.nameArabic || t.nameArabic,
+              email: updates.email || t.email,
+              phone: updates.phone || t.phone,
+              avatarUrl: updates.avatarUrl || t.avatarUrl,
+            };
+          }
+          return t;
+        })
+      );
       saveCloudDoc(CLOUD_COLLECTIONS.ADMIN_PROFILE, 'main_admin', updatedAdmin);
     } else if (currentUser.role === 'TEACHER') {
       updateTeacher(currentUser.id, updates as Partial<TeacherProfile>);
@@ -732,6 +797,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (userId === adminProfile.id || userId === 'admin' || userId === adminProfile.code) {
       const updated = { ...adminProfile, avatarUrl: newAvatarUrl };
       setAdminProfile(updated);
+      setTeachers(prev =>
+        prev.map(t => (t.id === 'usr-adm-1' || t.code === 'ADM-0001' ? { ...t, avatarUrl: newAvatarUrl } : t))
+      );
       saveCloudDoc(CLOUD_COLLECTIONS.ADMIN_PROFILE, 'main_admin', updated);
       if (currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN') {
         setCurrentUser(updated);
@@ -875,6 +943,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteTeacher = (id: string) => {
+    if (id === 'usr-adm-1' || id === adminProfile.id) {
+      return;
+    }
     setTeachers(prev => prev.filter(t => t.id !== id));
     deleteCloudDoc(CLOUD_COLLECTIONS.TEACHERS, id);
     if (currentUser && currentUser.id === id) {

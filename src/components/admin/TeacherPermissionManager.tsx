@@ -32,6 +32,8 @@ import {
   HelpCircle,
   CheckCircle,
   Camera,
+  Crown,
+  Lock,
 } from 'lucide-react';
 
 export const permissionDefinitions: {
@@ -411,11 +413,30 @@ export const TeacherPermissionManager: React.FC = () => {
               (tea.assignedProgramIds || []).includes(p.id)
             );
 
+            const isSupervisor = tea.id === 'usr-adm-1' || tea.code === 'ADM-0001';
+
             return (
               <div
                 key={tea.id}
-                className="bg-white rounded-3xl p-5 border border-[#29235D]/10 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4 relative group"
+                className={`rounded-3xl p-5 border transition-all flex flex-col justify-between space-y-4 relative group ${
+                  isSupervisor
+                    ? 'bg-gradient-to-b from-[#FBF8EF] to-white border-2 border-[#D3B673] shadow-md ring-4 ring-[#D3B673]/10'
+                    : 'bg-white border-[#29235D]/10 shadow-xs hover:shadow-md'
+                }`}
               >
+                {/* Supervisor distinctive badge */}
+                {isSupervisor && (
+                  <div className="flex items-center justify-between pb-2 border-b border-[#D3B673]/20">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black bg-[#29235D] text-[#D3B673] border border-[#D3B673]/40 shadow-xs">
+                      <Crown className="w-3.5 h-3.5 text-[#D3B673]" />
+                      {isRTL ? 'المشرف العام (إشراف المنصة + تدريس مباشر)' : 'Platform Supervisor & Master Instructor'}
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                      {isRTL ? 'إشراف وتدريس' : 'Admin & Teacher'}
+                    </span>
+                  </div>
+                )}
+
                 {/* Status and Actions header */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -457,33 +478,41 @@ export const TeacherPermissionManager: React.FC = () => {
                         </button>
 
                         {/* Regenerate code button */}
-                        <button
-                          onClick={() => handleRegenerateCode(tea.id)}
-                          className="p-1 text-gray-400 hover:text-[#29235D] hover:bg-gray-100 rounded transition-all cursor-pointer"
-                          title={isRTL ? 'توليد كود دخول جديد للمدرب' : 'Regenerate access code'}
-                        >
-                          <RefreshCw className="w-3 h-3" />
-                        </button>
+                        {!isSupervisor && (
+                          <button
+                            onClick={() => handleRegenerateCode(tea.id)}
+                            className="p-1 text-gray-400 hover:text-[#29235D] hover:bg-gray-100 rounded transition-all cursor-pointer"
+                            title={isRTL ? 'توليد كود دخول جديد للمدرب' : 'Regenerate access code'}
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
 
                   {/* Status Dropdown */}
-                  <select
-                    value={tea.status}
-                    onChange={e => updateTeacher(tea.id, { status: e.target.value as UserStatus })}
-                    className={`text-[10px] font-bold px-2.5 py-1 rounded-full border cursor-pointer ${
-                      tea.status === 'ACTIVE'
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                        : tea.status === 'SUSPENDED'
-                        ? 'bg-amber-50 text-amber-800 border-amber-200'
-                        : 'bg-gray-100 text-gray-700 border-gray-200'
-                    }`}
-                  >
-                    <option value="ACTIVE">{isRTL ? 'نشط' : 'Active'}</option>
-                    <option value="SUSPENDED">{isRTL ? 'معلّق' : 'Suspended'}</option>
-                    <option value="INACTIVE">{isRTL ? 'غير نشط' : 'Inactive'}</option>
-                  </select>
+                  {isSupervisor ? (
+                    <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      {isRTL ? 'نشط دائماً' : 'Always Active'}
+                    </span>
+                  ) : (
+                    <select
+                      value={tea.status}
+                      onChange={e => updateTeacher(tea.id, { status: e.target.value as UserStatus })}
+                      className={`text-[10px] font-bold px-2.5 py-1 rounded-full border cursor-pointer ${
+                        tea.status === 'ACTIVE'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : tea.status === 'SUSPENDED'
+                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          : 'bg-gray-100 text-gray-700 border-gray-200'
+                      }`}
+                    >
+                      <option value="ACTIVE">{isRTL ? 'نشط' : 'Active'}</option>
+                      <option value="SUSPENDED">{isRTL ? 'معلّق' : 'Suspended'}</option>
+                      <option value="INACTIVE">{isRTL ? 'غير نشط' : 'Inactive'}</option>
+                    </select>
+                  )}
                 </div>
 
                 {/* Assigned Programs Section */}
@@ -567,10 +596,14 @@ export const TeacherPermissionManager: React.FC = () => {
 
                   <button
                     onClick={() => setSelectedTeacherForTimetable(tea)}
-                    className="p-2 text-[#29235D] hover:bg-[#D3B673]/20 bg-[#F8F6F0] rounded-xl transition-all cursor-pointer border border-[#D3B673]/40"
-                    title={isRTL ? 'جدول المواعيد والحصص' : 'Weekly Timetable'}
+                    className={`p-2 rounded-xl transition-all cursor-pointer border ${
+                      isSupervisor
+                        ? 'bg-[#29235D] text-[#D3B673] border-[#D3B673] shadow-xs hover:bg-[#1E1945]'
+                        : 'text-[#29235D] hover:bg-[#D3B673]/20 bg-[#F8F6F0] border-[#D3B673]/40'
+                    }`}
+                    title={isRTL ? 'جدول المواعيد والتفرغ الأسبوعي' : 'Weekly Timetable'}
                   >
-                    <Calendar className="w-4 h-4 text-[#B89955]" />
+                    <Calendar className={`w-4 h-4 ${isSupervisor ? 'text-[#D3B673]' : 'text-[#B89955]'}`} />
                   </button>
 
                   <button
@@ -581,13 +614,23 @@ export const TeacherPermissionManager: React.FC = () => {
                     <Edit3 className="w-4 h-4" />
                   </button>
 
-                  <button
-                    onClick={() => setTeacherToDelete(tea)}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer border border-gray-200"
-                    title={isRTL ? 'حذف المدرب' : 'Delete teacher'}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {isSupervisor ? (
+                    <button
+                      disabled
+                      className="p-2 text-gray-300 bg-gray-50 rounded-xl cursor-not-allowed border border-gray-100"
+                      title={isRTL ? 'حساب المشرف العام محمي ولا يمكن حذفه' : 'Supervisor is Protected'}
+                    >
+                      <Lock className="w-4 h-4 text-gray-400" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setTeacherToDelete(tea)}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer border border-gray-200"
+                      title={isRTL ? 'حذف المدرب' : 'Delete teacher'}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             );

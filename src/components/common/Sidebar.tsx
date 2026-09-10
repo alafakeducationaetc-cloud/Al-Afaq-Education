@@ -70,6 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
 
   const getAdminItems = (): NavItem[] => [
     { id: 'dashboard', label: t('dashboard'), icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'my_classes', label: isRTL ? 'حصصي وتدريسي' : 'My Classes (Teaching)', icon: <Calendar className="w-4 h-4" />, badge: isRTL ? 'معلم ومشرف' : 'Instructor' },
     { id: 'messages', label: isRTL ? 'مراقبة المحادثات والرسائل' : 'Live Chat Monitor', icon: <MessageCircle className="w-4 h-4" />, badge: isRTL ? 'رقابة خفية' : 'Oversight' },
     { id: 'certificates', label: isRTL ? 'الشهادات والاعتمادات' : 'Certificates & Honors', icon: <Award className="w-4 h-4" />, badge: isRTL ? 'توثيق وتوقيع' : 'Signed' },
     { id: 'students', label: t('allStudents'), icon: <GraduationCap className="w-4 h-4" /> },

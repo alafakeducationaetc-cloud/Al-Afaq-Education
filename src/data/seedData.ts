@@ -41,8 +41,8 @@ export const initialAdmin: User = {
   code: 'ADM-0001',
   name: 'Al-Afak International Director',
   nameArabic: 'إدارة منصة الآفاق الدولية (المشرف العام)',
-  email: 'director@alafak.edu',
-  phone: '+966 50 000 0001',
+  email: 'alafak.education.aetc@gmail.com',
+  phone: '+20 101 199 2165',
   password: 'admin123',
   role: 'SUPER_ADMIN',
   status: 'ACTIVE',
@@ -51,7 +51,51 @@ export const initialAdmin: User = {
   permissions: ['*'],
 };
 
-export const initialTeachers: TeacherProfile[] = [];
+export const supervisorTeacherProfile: TeacherProfile = {
+  id: 'usr-adm-1',
+  code: 'ADM-0001',
+  name: 'Al-Afak International Director',
+  nameArabic: 'إدارة منصة الآفاق الدولية (المشرف العام)',
+  email: 'alafak.education.aetc@gmail.com',
+  phone: '+20 101 199 2165',
+  password: 'admin123',
+  role: 'TEACHER',
+  status: 'ACTIVE',
+  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+  joinedDate: '2025-01-01',
+  specialization: 'General Supervision & Master Arabic & Quranic Studies Instructor',
+  specializationArabic: 'المشرف العام — أستاذ وموجه اللغة العربية والقرآن الكريم',
+  bio: 'المشرف العام وإدارة منصة الآفاق الدولية — تدريس مباشر وإشراف أكاديمي شامل على البرامج وحلقات التلاوة وتأهيل المعلمين والطلاب.',
+  assignedProgramIds: ['prg-arb-01', 'prg-qur-01', 'prg-taj-01', 'prg-con-01', 'prg-grm-01'],
+  assignedStudentIds: [],
+  rating: 5.0,
+  totalClassesTaught: 18,
+  hourlyRatePrivateUSD: 35,
+  monthlyRateGroupUSD: 190,
+  titleArabic: 'المشرف العام والمدرس المباشر',
+  teacherPermissions: {
+    canCreateLessons: true,
+    canCreateActivities: true,
+    canManageAttendance: true,
+    canScheduleClasses: true,
+    canViewAllReports: true,
+    canIssueCertificates: true,
+    canAccessWhiteboard: true,
+    canEditCurriculum: true,
+  },
+  availabilitySlots: [
+    { id: 'slot-adm-1', day: 'SATURDAY', startTime: '16:00', endTime: '21:00', isAvailable: true, title: 'حلقات ودروس المشرف العام', studyType: 'BOTH', status: 'AVAILABLE', maxStudents: 10 },
+    { id: 'slot-adm-2', day: 'SUNDAY', startTime: '16:00', endTime: '21:00', isAvailable: true, title: 'حلقات ودروس المشرف العام', studyType: 'BOTH', status: 'AVAILABLE', maxStudents: 10 },
+    { id: 'slot-adm-3', day: 'MONDAY', startTime: '16:00', endTime: '21:00', isAvailable: true, title: 'حلقات ودروس المشرف العام', studyType: 'BOTH', status: 'AVAILABLE', maxStudents: 10 },
+    { id: 'slot-adm-4', day: 'TUESDAY', startTime: '16:00', endTime: '21:00', isAvailable: true, title: 'حلقات ودروس المشرف العام', studyType: 'BOTH', status: 'AVAILABLE', maxStudents: 10 },
+    { id: 'slot-adm-5', day: 'WEDNESDAY', startTime: '16:00', endTime: '21:00', isAvailable: true, title: 'حلقات ودروس المشرف العام', studyType: 'BOTH', status: 'AVAILABLE', maxStudents: 10 },
+    { id: 'slot-adm-6', day: 'THURSDAY', startTime: '16:00', endTime: '21:00', isAvailable: true, title: 'حلقات ودروس المشرف العام', studyType: 'BOTH', status: 'AVAILABLE', maxStudents: 10 },
+  ],
+};
+
+export const initialTeachers: TeacherProfile[] = [
+  supervisorTeacherProfile,
+];
 
 export const initialStudents: StudentProfile[] = [];
 
@@ -73,7 +117,7 @@ export const initialPrograms: Program[] = [
     currency: 'USD',
     totalSessions: 24,
     sessionDurationMinutes: 60,
-    assignedTeacherIds: [],
+    assignedTeacherIds: ['usr-adm-1'],
     enrolledStudentIds: [],
     startDate: '2026-01-15',
     endDate: '2026-04-15',
@@ -97,7 +141,7 @@ export const initialPrograms: Program[] = [
     currency: 'USD',
     totalSessions: 32,
     sessionDurationMinutes: 45,
-    assignedTeacherIds: [],
+    assignedTeacherIds: ['usr-adm-1'],
     enrolledStudentIds: [],
     startDate: '2026-01-20',
     endDate: '2026-05-20',
@@ -121,7 +165,7 @@ export const initialPrograms: Program[] = [
     currency: 'USD',
     totalSessions: 24,
     sessionDurationMinutes: 60,
-    assignedTeacherIds: [],
+    assignedTeacherIds: ['usr-adm-1'],
     enrolledStudentIds: [],
     startDate: '2026-02-01',
     endDate: '2026-05-01',
@@ -145,7 +189,7 @@ export const initialPrograms: Program[] = [
     currency: 'USD',
     totalSessions: 16,
     sessionDurationMinutes: 60,
-    assignedTeacherIds: [],
+    assignedTeacherIds: ['usr-adm-1'],
     enrolledStudentIds: [],
     startDate: '2026-03-01',
     endDate: '2026-05-01',
@@ -169,7 +213,7 @@ export const initialPrograms: Program[] = [
     currency: 'USD',
     totalSessions: 24,
     sessionDurationMinutes: 60,
-    assignedTeacherIds: [],
+    assignedTeacherIds: ['usr-adm-1'],
     enrolledStudentIds: [],
     startDate: '2026-02-10',
     endDate: '2026-05-10',
@@ -180,7 +224,46 @@ export const initialPrograms: Program[] = [
 
 export const initialSubscriptions: Subscription[] = [];
 
-export const initialClasses: ClassSession[] = [];
+export const initialClasses: ClassSession[] = [
+  {
+    id: 'cls-adm-01',
+    title: 'Arabic Foundation Mastery Circle',
+    titleArabic: 'حلقة إتقان مخارج الحروف والتأسيس اللغوي (تدريس وإشراف مباشر)',
+    programId: 'prg-arb-01',
+    teacherId: 'usr-adm-1',
+    studentIds: [],
+    studyMode: 'GROUP',
+    date: new Date().toISOString().split('T')[0],
+    startTime: '17:00',
+    endTime: '18:30',
+    durationMinutes: 90,
+    zoomUrl: 'https://zoom.us/j/alafak-master-circle',
+    zoomMeetingId: '821 4452 9012',
+    zoomPassword: 'afak',
+    status: 'SCHEDULED',
+    topic: 'تطبيقات النطق ومخارج الحروف وقراءة الكلمات المركبة',
+    notes: 'جلسة تدريس مباشر بإشراف المشرف العام',
+  },
+  {
+    id: 'cls-adm-02',
+    title: 'Tajweed Articulation Live Workshop',
+    titleArabic: 'مقرأة تصحيح التلاوة وأحكام التجويد العملية',
+    programId: 'prg-taj-01',
+    teacherId: 'usr-adm-1',
+    studentIds: [],
+    studyMode: 'PRIVATE',
+    date: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+    startTime: '19:00',
+    endTime: '20:00',
+    durationMinutes: 60,
+    zoomUrl: 'https://zoom.us/j/alafak-tajweed-live',
+    zoomMeetingId: '912 3341 8021',
+    zoomPassword: 'afak',
+    status: 'SCHEDULED',
+    topic: 'أحكام النون الساكنة والتنوين وتطبيقات سورة النبأ',
+    notes: 'حصة تدريس مباشر فردية بإشراف المشرف العام',
+  },
+];
 
 export const initialAttendance: AttendanceRecord[] = [];
 

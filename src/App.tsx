@@ -60,13 +60,24 @@ const MainAppLayout: React.FC = () => {
       case 'certificates':
         return <CertificatesManager />;
 
+      case 'my_classes':
+        return <AdminDashboard onNavigateTab={setActiveTab} initialSubTab="MY_CLASSES" key="my_classes" />;
+
       case 'students':
+        return <AdminDashboard onNavigateTab={setActiveTab} initialSubTab="STUDENTS" key="students" />;
+
       case 'teachers':
+        return <AdminDashboard onNavigateTab={setActiveTab} initialSubTab="TEACHERS" key="teachers" />;
+
       case 'subscriptions':
+        return <AdminDashboard onNavigateTab={setActiveTab} initialSubTab="SUBSCRIPTIONS" key="subscriptions" />;
+
       case 'permissions':
+        return <AdminDashboard onNavigateTab={setActiveTab} initialSubTab="PERMISSIONS" key="permissions" />;
+
       case 'reports':
       case 'settings':
-        return <AdminDashboard onNavigateTab={setActiveTab} />;
+        return <AdminDashboard onNavigateTab={setActiveTab} initialSubTab="SETTINGS" key="settings" />;
 
       case 'profile':
         return <ProfileView />;
