@@ -81,9 +81,12 @@ export const StudentEnrollmentModal: React.FC<StudentEnrollmentModalProps> = ({
   if (!isOpen) return null;
 
   const currentProgram = programs.find(p => p.id === selectedProgramId) || programs[0];
-  const eligibleTeachers = teachers.filter(t => 
-    !currentProgram || currentProgram.assignedTeacherIds.includes(t.id) || teachers.length <= 2
+  const supervisorTeacher = teachers.find(t => t.id === 'usr-adm-1' || t.code === 'ADM-0001');
+  const otherEligible = teachers.filter(t => 
+    t.id !== 'usr-adm-1' && t.code !== 'ADM-0001' &&
+    (!currentProgram || currentProgram.assignedTeacherIds.includes(t.id) || teachers.length <= 2)
   );
+  const eligibleTeachers = supervisorTeacher ? [supervisorTeacher, ...otherEligible] : otherEligible;
   const currentTeacher = teachers.find(t => t.id === (selectedTeacherId || eligibleTeachers[0]?.id));
 
   // Filter slots for the selected teacher and study mode
@@ -294,11 +297,18 @@ ${slotText}
                     {eligibleTeachers.length === 0 ? (
                       <option value="">{isRTL ? 'سيتم تعيين المعلم فور تأكيد التسجيل' : 'Teacher assigned upon confirmation'}</option>
                     ) : (
-                      eligibleTeachers.map(tea => (
-                        <option key={tea.id} value={tea.id}>
-                          {isRTL ? tea.nameArabic || tea.name : tea.name} ({tea.specializationArabic || tea.specialization})
-                        </option>
-                      ))
+                      eligibleTeachers.map(tea => {
+                        const isSupervisor = tea.id === 'usr-adm-1' || tea.code === 'ADM-0001';
+                        return (
+                          <option key={tea.id} value={tea.id}>
+                            {isSupervisor ? '👑 ' : ''}
+                            {isRTL ? tea.nameArabic || tea.name : tea.name}
+                            {isSupervisor
+                              ? (isRTL ? ' (المشرف العام - تدريس مباشر)' : ' (Supervisor & Master Instructor)')
+                              : ` (${isRTL ? tea.specializationArabic || tea.specialization : tea.specialization})`}
+                          </option>
+                        );
+                      })
                     )}
                   </select>
                 </div>

@@ -59,6 +59,7 @@ const defaultTeacherPermissions: TeacherPermissions = {
 interface AppContextType {
   currentUser: User | StudentProfile | TeacherProfile | null;
   setCurrentUser: (user: User | StudentProfile | TeacherProfile | null) => void;
+  adminProfile: User;
   users: User[];
   students: StudentProfile[];
   teachers: TeacherProfile[];
@@ -232,13 +233,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [teachers, setTeachers] = useState<TeacherProfile[]>(() => {
     const loaded = loadStored<TeacherProfile[]>('teachers', initialTeachers);
     const supervisor = supervisorTeacherProfile;
-    const hasSupervisor = loaded.some(
-      t => t.id === 'usr-adm-1' || t.code === 'ADM-0001' || t.email === supervisor.email
-    );
-    if (!hasSupervisor) {
-      return [supervisor, ...loaded];
-    }
-    return loaded.map(t => {
+    const mapped = loaded.map(t => {
       if (t.id === 'usr-adm-1' || t.code === 'ADM-0001' || t.email === supervisor.email) {
         return {
           ...supervisor,
@@ -268,6 +263,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return t;
     });
+
+    const supItem = mapped.find(t => t.id === 'usr-adm-1' || t.code === 'ADM-0001') || supervisor;
+    const others = mapped.filter(t => t.id !== 'usr-adm-1' && t.code !== 'ADM-0001');
+    return [supItem, ...others];
   });
   const [programs, setPrograms] = useState<Program[]>(() => loadStored('programs', initialPrograms));
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(() => loadStored('subscriptions', initialSubscriptions));
@@ -880,6 +879,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setStudents(prev => [newStudent, ...prev]);
     saveCloudDoc(CLOUD_COLLECTIONS.STUDENTS, id, newStudent);
+
+    if (data.assignedTeacherIds && data.assignedTeacherIds.length > 0) {
+      setTeachers(prev =>
+        prev.map(t =>
+          data.assignedTeacherIds.includes(t.id) && !t.assignedStudentIds.includes(id)
+            ? { ...t, assignedStudentIds: [...t.assignedStudentIds, id] }
+            : t
+        )
+      );
+    }
   };
 
   const updateStudent = (id: string, updates: Partial<StudentProfile>) => {
@@ -894,6 +903,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       return updatedList;
     });
+
+    if (updates.assignedTeacherIds) {
+      setTeachers(prev =>
+        prev.map(t => {
+          const shouldHave = updates.assignedTeacherIds!.includes(t.id);
+          const has = t.assignedStudentIds.includes(id);
+          if (shouldHave && !has) {
+            return { ...t, assignedStudentIds: [...t.assignedStudentIds, id] };
+          }
+          if (!shouldHave && has) {
+            return { ...t, assignedStudentIds: t.assignedStudentIds.filter(sId => sId !== id) };
+          }
+          return t;
+        })
+      );
+    }
+
     if (currentUser && currentUser.id === id) {
       setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
     }
@@ -1902,6 +1928,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         currentUser,
         setCurrentUser,
+        adminProfile,
         users,
         students,
         teachers,

@@ -20,6 +20,7 @@ import {
   AttendanceStatus,
   StudentProfile,
   TeacherProfile,
+  StudyMode,
 } from '../../types';
 import {
   Users,
@@ -55,6 +56,9 @@ import {
   Clock,
   Check,
   Award,
+  Crown,
+  X,
+  UserCheck,
 } from 'lucide-react';
 
 export type AdminSubTab =
@@ -80,6 +84,7 @@ interface AdminDashboardProps {
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab, initialSubTab }) => {
   const {
     currentUser,
+    adminProfile,
     students,
     teachers,
     programs,
@@ -128,12 +133,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab, i
   const [extendDays, setExtendDays] = useState(30);
   const [extendSessions, setExtendSessions] = useState(8);
 
+  // List of all teachers ensuring Super Admin (Supervisor) is ALWAYS included and prioritized first
+  const supervisorTeacherInList: TeacherProfile = teachers.find(t => t.id === 'usr-adm-1' || t.code === 'ADM-0001') || {
+    id: 'usr-adm-1',
+    code: 'ADM-0001',
+    name: adminProfile?.name || currentUser?.name || 'Al-Afak International Director',
+    nameArabic: adminProfile?.nameArabic || currentUser?.nameArabic || 'إدارة منصة الآفاق الدولية (المشرف العام)',
+    email: adminProfile?.email || currentUser?.email || 'alafak.education.aetc@gmail.com',
+    phone: adminProfile?.phone || currentUser?.phone || '+20 101 199 2165',
+    role: 'TEACHER',
+    status: 'ACTIVE',
+    avatarUrl: adminProfile?.avatarUrl || currentUser?.avatarUrl,
+    specialization: 'General Supervision & Master Arabic & Quranic Studies Instructor',
+    specializationArabic: 'المشرف العام — أستاذ وموجه اللغة العربية والقرآن الكريم',
+    bio: 'المشرف العام وإدارة منصة الآفاق الدولية — تدريس مباشر وإشراف أكاديمي شامل على البرامج وحلقات التلاوة وتأهيل المعلمين والطلاب.',
+    assignedProgramIds: programs.map(p => p.id),
+    assignedStudentIds: [],
+    joinedDate: '2025-01-01',
+    rating: 5.0,
+    totalClassesTaught: 18,
+  };
+
+  const otherTeachersList = teachers.filter(t => t.id !== 'usr-adm-1' && t.code !== 'ADM-0001');
+  const allSelectableTeachers = [supervisorTeacherInList, ...otherTeachersList];
+
   // New Student State
   const [newStdName, setNewStdName] = useState('');
   const [newStdNameAr, setNewStdNameAr] = useState('');
   const [newStdEmail, setNewStdEmail] = useState('');
-  const [newStdTeacherId, setNewStdTeacherId] = useState(teachers[0]?.id || '');
+  const [newStdPhone, setNewStdPhone] = useState('');
+  const [newStdTeacherId, setNewStdTeacherId] = useState('usr-adm-1');
   const [newStdProgramId, setNewStdProgramId] = useState(programs[0]?.id || '');
+  const [newStdStudyMode, setNewStdStudyMode] = useState<StudyMode>('PRIVATE');
 
   // New Teacher State
   const [newTeaName, setNewTeaName] = useState('');
@@ -170,21 +201,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab, i
 
   const handleCreateStudent = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newStdName) return;
+    if (!newStdName && !newStdNameAr) return;
+    const finalTeacherId = newStdTeacherId || 'usr-adm-1';
     addStudent({
       role: 'STUDENT',
-      name: newStdName,
-      nameArabic: newStdNameAr,
+      name: newStdName || newStdNameAr,
+      nameArabic: newStdNameAr || newStdName,
       email: newStdEmail,
+      phone: newStdPhone,
       status: 'ACTIVE',
-      assignedTeacherIds: newStdTeacherId ? [newStdTeacherId] : [],
+      assignedTeacherIds: [finalTeacherId],
       enrolledProgramIds: newStdProgramId ? [newStdProgramId] : [],
-      nativeLanguage: 'English',
+      preferredStudyMode: newStdStudyMode,
+      nativeLanguage: isRTL ? 'العربية' : 'English',
     });
+
+    // Automatically create a subscription if a program was selected
+    if (newStdProgramId) {
+      const prog = programs.find(p => p.id === newStdProgramId);
+      if (prog) {
+        addSubscription({
+          studentId: '',
+          programId: prog.id,
+          teacherId: finalTeacherId,
+          startDate: new Date().toISOString().split('T')[0],
+          endDate: new Date(Date.now() + (prog.durationMonths || 3) * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          totalSessions: prog.totalSessions || 24,
+          attendedSessions: 0,
+          remainingSessions: prog.totalSessions || 24,
+          studyMode: newStdStudyMode,
+          status: 'ACTIVE',
+          paymentStatus: 'PAID',
+          amount: newStdStudyMode === 'PRIVATE' ? (prog.privatePrice || prog.price) : (prog.groupPrice || Math.round(prog.price * 0.6)),
+          notes: `مسجل عبر لوحة التحكم — المعلم المسند: ${finalTeacherId === 'usr-adm-1' ? 'المشرف العام (تدريس مباشر)' : 'معلم معتمد'}`,
+        });
+      }
+    }
+
     setShowAddStudentModal(false);
     setNewStdName('');
     setNewStdNameAr('');
     setNewStdEmail('');
+    setNewStdPhone('');
   };
 
   const handleCreateTeacher = (e: React.FormEvent) => {
@@ -793,17 +851,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab, i
             <table className="w-full text-left rtl:text-right text-xs">
               <thead className="bg-[#F8F6F0] text-[#786F9A] uppercase tracking-wider font-bold">
                 <tr>
-                  <th className="p-3 rounded-l-xl rtl:rounded-r-xl">Student</th>
-                  <th className="p-3">Code</th>
-                  <th className="p-3">Assigned Teacher</th>
-                  <th className="p-3">Joined Date</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3 rounded-r-xl rtl:rounded-l-xl text-right rtl:text-left">Status Actions</th>
+                  <th className="p-3 rounded-l-xl rtl:rounded-r-xl">{isRTL ? 'الطالب' : 'Student'}</th>
+                  <th className="p-3">{isRTL ? 'كود الطالب' : 'Code'}</th>
+                  <th className="p-3">{isRTL ? 'المعلم المسند' : 'Assigned Teacher'}</th>
+                  <th className="p-3">{isRTL ? 'تاريخ الانضمام' : 'Joined Date'}</th>
+                  <th className="p-3">{isRTL ? 'الحالة' : 'Status'}</th>
+                  <th className="p-3 rounded-r-xl rtl:rounded-l-xl text-right rtl:text-left">{isRTL ? 'الإجراءات' : 'Status Actions'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {students.map(std => {
                   const teacher = teachers.find(t => std.assignedTeacherIds.includes(t.id));
+                  const isSupervisorTeacher = teacher?.id === 'usr-adm-1' || teacher?.code === 'ADM-0001';
                   return (
                     <tr key={std.id} className="hover:bg-gray-50/60">
                       <td className="p-3 font-semibold text-[#29235D] flex items-center gap-2">
@@ -828,7 +887,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab, i
                         </div>
                       </td>
                       <td className="p-3 font-mono font-bold text-[#D3B673]">{std.code}</td>
-                      <td className="p-3 text-gray-600">{teacher ? (teacher.nameArabic || teacher.name) : 'Unassigned'}</td>
+                      <td className="p-3">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {isSupervisorTeacher && (
+                              <Crown className="w-3.5 h-3.5 text-[#B89955] shrink-0" />
+                            )}
+                            <span className={`font-semibold ${isSupervisorTeacher ? 'text-[#29235D] font-bold' : 'text-gray-700'}`}>
+                              {teacher ? (isRTL ? teacher.nameArabic || teacher.name : teacher.name) : (isRTL ? 'غير مسند' : 'Unassigned')}
+                            </span>
+                            {isSupervisorTeacher && (
+                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-[#29235D] text-[#D3B673]">
+                                {isRTL ? 'المشرف العام' : 'Supervisor'}
+                              </span>
+                            )}
+                          </div>
+                          {/* Quick change / reassign teacher dropdown */}
+                          <select
+                            value={std.assignedTeacherIds[0] || ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              updateStudent(std.id, {
+                                assignedTeacherIds: val ? [val] : [],
+                              });
+                            }}
+                            className="text-[10px] py-1 px-1.5 bg-[#FBF9F4] border border-gray-200 rounded-lg text-gray-700 hover:border-[#D3B673] focus:outline-none max-w-[170px]"
+                            title={isRTL ? 'تغيير أو إسناد المعلم' : 'Reassign Teacher'}
+                          >
+                            <option value="">{isRTL ? '-- اختر معلماً مسنداً --' : '-- Choose Instructor --'}</option>
+                            {allSelectableTeachers.map(tea => {
+                              const isSup = tea.id === 'usr-adm-1' || tea.code === 'ADM-0001';
+                              return (
+                                <option key={tea.id} value={tea.id}>
+                                  {isSup ? '👑 ' : ''}
+                                  {isRTL ? tea.nameArabic || tea.name : tea.name}
+                                  {isSup ? (isRTL ? ' (المشرف العام)' : ' (Supervisor)') : ` (${tea.code})`}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+                      </td>
                       <td className="p-3 text-gray-500">{std.joinedDate}</td>
                       <td className="p-3">
                         <span
@@ -1197,67 +1296,202 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab, i
       {/* Modal: Add Student */}
       {showAddStudentModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-[#29235D]/20 shadow-2xl">
-            <h3 className="text-base font-bold text-[#29235D] font-serif">Create New Student Account</h3>
-            <form onSubmit={handleCreateStudent} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-[#29235D] mb-1">Full Name (English)</label>
-                <input
-                  type="text"
-                  required
-                  value={newStdName}
-                  onChange={e => setNewStdName(e.target.value)}
-                  placeholder="e.g. Yasmin Al-Hassan"
-                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl"
-                />
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 border border-[#29235D]/20 shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-[#29235D]/10 text-[#29235D]">
+                  <UserCheck className="w-5 h-5 text-[#B89955]" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#29235D] font-serif">
+                    {isRTL ? 'تسجيل وإضافة طالب جديد' : 'Create New Student Account'}
+                  </h3>
+                  <p className="text-[11px] text-gray-500">
+                    {isRTL ? 'إسناد الطالب للمشرف العام أو لأحد المعلمين المعتمدين' : 'Assign student to Supervisor or certified teacher'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <label className="block font-bold text-[#29235D] mb-1">Full Name (Arabic)</label>
-                <input
-                  type="text"
-                  value={newStdNameAr}
-                  onChange={e => setNewStdNameAr(e.target.value)}
-                  placeholder="ياسمين الحسن"
-                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl font-arabic"
-                />
+              <button
+                type="button"
+                onClick={() => setShowAddStudentModal(false)}
+                className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateStudent} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-[#29235D] mb-1">
+                    {isRTL ? 'الاسم الكامل (بالعربية) *' : 'Full Name (Arabic) *'}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newStdNameAr}
+                    onChange={e => setNewStdNameAr(e.target.value)}
+                    placeholder="ياسمين الحسن"
+                    className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl font-arabic focus:border-[#D3B673] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-[#29235D] mb-1">
+                    {isRTL ? 'الاسم الكامل (بالإنجليزية)' : 'Full Name (English)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={newStdName}
+                    onChange={e => setNewStdName(e.target.value)}
+                    placeholder="Yasmin Al-Hassan"
+                    className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl focus:border-[#D3B673] outline-none"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block font-bold text-[#29235D] mb-1">Email</label>
-                <input
-                  type="email"
-                  value={newStdEmail}
-                  onChange={e => setNewStdEmail(e.target.value)}
-                  placeholder="student@example.com"
-                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl"
-                />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-[#29235D] mb-1">
+                    {isRTL ? 'البريد الإلكتروني' : 'Email Address'}
+                  </label>
+                  <input
+                    type="email"
+                    value={newStdEmail}
+                    onChange={e => setNewStdEmail(e.target.value)}
+                    placeholder="student@example.com"
+                    className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl focus:border-[#D3B673] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-[#29235D] mb-1">
+                    {isRTL ? 'رقم الهاتف / الواتساب' : 'Phone / WhatsApp'}
+                  </label>
+                  <input
+                    type="tel"
+                    value={newStdPhone}
+                    onChange={e => setNewStdPhone(e.target.value)}
+                    placeholder="+20 101 234 5678"
+                    className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl focus:border-[#D3B673] outline-none font-mono"
+                  />
+                </div>
               </div>
+
+              {/* Program Selection */}
               <div>
-                <label className="block font-bold text-[#29235D] mb-1">Assign Primary Teacher</label>
+                <label className="block font-bold text-[#29235D] mb-1">
+                  {isRTL ? 'البرنامج التعليمي المسجل به' : 'Enrolled Academic Program'}
+                </label>
                 <select
-                  value={newStdTeacherId}
-                  onChange={e => setNewStdTeacherId(e.target.value)}
-                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl"
+                  value={newStdProgramId}
+                  onChange={e => setNewStdProgramId(e.target.value)}
+                  className="w-full p-2.5 bg-[#FBF9F4] border border-gray-200 rounded-xl focus:border-[#D3B673] outline-none font-medium"
                 >
-                  {teachers.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} ({t.code})
+                  <option value="">{isRTL ? '-- اختر البرنامج التعليمي --' : '-- Select Program --'}</option>
+                  {programs.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {isRTL ? p.nameArabic : p.name} ({p.currency} {p.price})
                     </option>
                   ))}
                 </select>
               </div>
+
+              {/* Study Mode */}
+              <div>
+                <label className="block font-bold text-[#29235D] mb-1">
+                  {isRTL ? 'نظام الدراسة المفضل' : 'Preferred Study Mode'}
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewStdStudyMode('PRIVATE')}
+                    className={`p-2.5 rounded-xl border font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      newStdStudyMode === 'PRIVATE'
+                        ? 'bg-[#29235D] text-[#D3B673] border-[#29235D]'
+                        : 'bg-[#FBF9F4] text-gray-700 border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>{isRTL ? 'دراسة فردية خاصة (1-on-1)' : 'Private (1-on-1)'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewStdStudyMode('GROUP')}
+                    className={`p-2.5 rounded-xl border font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      newStdStudyMode === 'GROUP'
+                        ? 'bg-[#29235D] text-[#D3B673] border-[#29235D]'
+                        : 'bg-[#FBF9F4] text-gray-700 border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>{isRTL ? 'مجموعة تفاعلية (Group)' : 'Interactive Group'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Assign Primary Teacher with Supervisor Prioritized First */}
+              <div className="pt-1">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block font-bold text-[#29235D] flex items-center gap-1.5">
+                    <GraduationCap className="w-4 h-4 text-[#B89955]" />
+                    <span>{isRTL ? 'تعيين المعلم / المدرب الأساسي للطالب' : 'Assign Primary Instructor'}</span>
+                  </label>
+                  <span className="text-[10px] font-bold text-[#B89955] flex items-center gap-1">
+                    <Crown className="w-3 h-3 text-[#B89955]" />
+                    <span>{isRTL ? 'اسمك كمشرف متاح أولاً' : 'Director Available'}</span>
+                  </span>
+                </div>
+
+                <select
+                  value={newStdTeacherId}
+                  onChange={e => setNewStdTeacherId(e.target.value)}
+                  className="w-full p-2.5 bg-[#FBF9F4] border-2 border-[#29235D]/30 focus:border-[#D3B673] rounded-xl font-bold text-[#29235D] outline-none"
+                >
+                  {allSelectableTeachers.map(t => {
+                    const isSupervisor = t.id === 'usr-adm-1' || t.code === 'ADM-0001';
+                    const displayName = isRTL ? (t.nameArabic || t.name) : t.name;
+                    return (
+                      <option
+                        key={t.id}
+                        value={t.id}
+                        className={isSupervisor ? 'font-black bg-[#F8F6F0] text-[#29235D]' : ''}
+                      >
+                        {isSupervisor ? '👑 ' : ''}
+                        {displayName}
+                        {isSupervisor
+                          ? (isRTL ? ' (المشرف العام - تدريس مباشر)' : ' (Supervisor & Master Instructor)')
+                          : ` (${t.code}) - ${isRTL ? (t.specializationArabic || t.specialization) : t.specialization}`}
+                      </option>
+                    );
+                  })}
+                </select>
+
+                {/* Supervisor confirmation banner */}
+                {(newStdTeacherId === 'usr-adm-1' || newStdTeacherId === 'ADM-0001') && (
+                  <div className="mt-2.5 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center gap-2">
+                    <Crown className="w-4 h-4 text-[#B89955] shrink-0" />
+                    <span className="text-[11px] font-bold leading-relaxed">
+                      {isRTL
+                        ? 'سيتم إسناد الطالب مباشرة إلى حسابك التدريسي (المشرف العام)، وسيظهر الطالب في جدول حصصك وقائمة طلابك المباشرة.'
+                        : 'The student will be directly assigned to your supervisor teaching schedule and direct classes.'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setShowAddStudentModal(false)}
-                  className="px-4 py-2 text-gray-500 font-bold"
+                  className="px-4 py-2 text-gray-500 font-bold hover:bg-gray-100 rounded-xl cursor-pointer"
                 >
-                  Cancel
+                  {isRTL ? 'إلغاء' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-[#29235D] text-[#D3B673] font-bold rounded-xl"
+                  className="px-5 py-2.5 bg-[#29235D] hover:bg-[#1D1845] text-[#D3B673] font-bold rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
                 >
-                  Create Student
+                  <Plus className="w-4 h-4" />
+                  <span>{isRTL ? 'تسجيل الطالب وتأكيد الإسناد' : 'Create Student & Assign'}</span>
                 </button>
               </div>
             </form>

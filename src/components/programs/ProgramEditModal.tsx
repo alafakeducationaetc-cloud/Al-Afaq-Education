@@ -18,6 +18,7 @@ import {
   Award,
   Globe,
   Tag,
+  Crown,
 } from 'lucide-react';
 
 interface ProgramEditModalProps {
@@ -415,38 +416,55 @@ export const ProgramEditModal: React.FC<ProgramEditModalProps> = ({
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-64 overflow-y-auto">
-                {teachers.map(teacher => {
-                  const isAssigned = assignedTeacherIds.includes(teacher.id);
-                  return (
-                    <div
-                      key={teacher.id}
-                      onClick={() => toggleTeacher(teacher.id)}
-                      className={`p-3 rounded-2xl border flex items-center gap-3 cursor-pointer transition-all ${
-                        isAssigned
-                          ? 'bg-[#29235D]/5 border-[#29235D] shadow-xs'
-                          : 'bg-[#FBF9F4] border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isAssigned}
-                        onChange={() => {}}
-                        className="rounded text-[#29235D] focus:ring-[#D3B673]"
-                      />
-                      <img
-                        src={teacher.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100'}
-                        alt={teacher.name}
-                        className="w-9 h-9 rounded-full object-cover border border-[#D3B673]"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-[#29235D] truncate">
-                          {isRTL ? teacher.nameArabic || teacher.name : teacher.name}
-                        </p>
-                        <p className="text-[10px] text-gray-500 font-mono truncate">{teacher.code}</p>
+                {[...teachers]
+                  .sort((a, b) => ((a.id === 'usr-adm-1' || a.code === 'ADM-0001') ? -1 : (b.id === 'usr-adm-1' || b.code === 'ADM-0001') ? 1 : 0))
+                  .map(teacher => {
+                    const isAssigned = assignedTeacherIds.includes(teacher.id);
+                    const isSupervisor = teacher.id === 'usr-adm-1' || teacher.code === 'ADM-0001';
+                    return (
+                      <div
+                        key={teacher.id}
+                        onClick={() => toggleTeacher(teacher.id)}
+                        className={`p-3 rounded-2xl border flex items-center gap-3 cursor-pointer transition-all ${
+                          isAssigned
+                            ? 'bg-[#29235D]/5 border-[#29235D] shadow-xs'
+                            : 'bg-[#FBF9F4] border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isAssigned}
+                          onChange={() => {}}
+                          className="rounded text-[#29235D] focus:ring-[#D3B673]"
+                        />
+                        <div className="relative shrink-0">
+                          <img
+                            src={teacher.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100'}
+                            alt={teacher.name}
+                            className="w-9 h-9 rounded-full object-cover border border-[#D3B673]"
+                          />
+                          {isSupervisor && (
+                            <span className="absolute -top-1 -right-1 p-0.5 rounded-full bg-[#29235D] text-[#D3B673]">
+                              <Crown className="w-2.5 h-2.5" />
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="font-bold text-[#29235D] truncate">
+                              {isRTL ? teacher.nameArabic || teacher.name : teacher.name}
+                            </p>
+                            {isSupervisor && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-[#D3B673]/20 text-[#29235D]">
+                                {isRTL ? 'المشرف العام' : 'Supervisor'}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-gray-500 font-mono truncate">{teacher.code}</p>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             </div>
           )}
